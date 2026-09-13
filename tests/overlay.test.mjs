@@ -45,7 +45,8 @@ describe("precedence and lifecycle content", () => {
   test("names both surfaces and the tie-breaker", () => {
     assert.match(precedence, /Direct reply\./);
     assert.match(precedence, /Other writing\./);
-    assert.match(precedence, /ADHD wins for a direct reply and unslop wins for other writing/);
+    assert.match(precedence, /ADHD wins for a direct reply/);
+    assert.match(precedence, /Unslop wins for other writing/);
   });
   test("outcome table has one row per interaction", () => {
     const interactions = JSON.parse(read("tests", "interactions.json"));

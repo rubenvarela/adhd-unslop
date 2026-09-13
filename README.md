@@ -1,8 +1,8 @@
 # adhd-unslop
 
-One skill that runs [i-have-adhd](https://github.com/ayghri/i-have-adhd) and
-pstack's [unslop](https://github.com/michael-denyer/pstack-claude) together,
-with a defined tie-breaker. Works as a Claude Code plugin and a Codex plugin.
+This skill combines [i-have-adhd](https://github.com/ayghri/i-have-adhd) and
+pstack's [unslop](https://github.com/michael-denyer/pstack-claude). It works
+as a Claude Code plugin and a Codex plugin.
 
 ## The rule
 
@@ -10,8 +10,8 @@ Both rule sets stay active. When a rule from each would produce different text
 for the same passage:
 
 - In a direct reply to the user, i-have-adhd wins.
-- In any other writing (files, docs, commit messages, PR text, subagent
-  prompts, text you were asked to rewrite), unslop wins.
+- In all other writing, unslop wins. This includes files, docs, commit
+  messages, PR text, subagent prompts, and text you were asked to rewrite.
 
 Compatible rules apply everywhere. The skill defines both surfaces per
 passage, lists the known interactions in an outcome table, and adds
@@ -31,7 +31,7 @@ Type `/adhd-unslop` in a session. If another command occupies that name, use
 `/adhd-unslop:adhd-unslop`. The skill has `disable-model-invocation: true`,
 so nothing applies until you invoke it or enable always-on.
 
-Always-on (optional):
+Optional always-on mode:
 
 ```bash
 touch ~/.claude/.adhd-unslop-always      # or "$CLAUDE_CONFIG_DIR/.adhd-unslop-always"
@@ -68,20 +68,24 @@ catalog, so `$adhd-unslop` found nothing until the symlink above existed.
 Use the marketplace route for the always-on hook, the symlink route for the
 skill, or both.
 
-Always-on (optional, marketplace route):
+Optional always-on mode for the marketplace install:
 
 ```bash
 touch ~/.codex/.adhd-unslop-always       # or "$CODEX_HOME/.adhd-unslop-always"
 ```
 
-Codex runs plugin hooks only after you review and trust them. Open `/hooks`
-in an interactive Codex session, trust all three `adhd-unslop` handlers, and
-restart. A changed hook definition (for example after an upgrade) needs
-trusting again. Either flag file enables always-on in both runtimes. The
-hook path on Codex is not yet verified end to end because trusting hooks is
-interactive; the launcher itself is covered by the test suite.
+Codex runs plugin hooks only after you review and trust them:
 
-Fallback without hooks: add this to `~/.codex/AGENTS.md`.
+1. Open `/hooks` in an interactive Codex session.
+2. Trust all three `adhd-unslop` handlers.
+3. Restart.
+
+Trust a changed hook definition again after an upgrade. Either flag
+file enables always-on in both runtimes. The Codex hook path is not yet
+verified end to end because trusting hooks is interactive. The test suite
+covers the launcher.
+
+Without hooks, add this to `~/.codex/AGENTS.md`.
 
 ```markdown
 At the start of every session, read and follow the complete installed
@@ -98,14 +102,18 @@ delivers it as three chunks from three handlers under one matcher:
 2. The i-have-adhd body, verbatim.
 3. The unslop body, verbatim, plus the final check.
 
-Every chunk carries the same header: its index, the bundle id (first 12 hex
-of the composite's SHA-256), the rule to apply the bundle only once all
-three chunks arrived, the rule that receiving instructions never changes
-mode state, and the precedence line. Each handler sets
-`additionalContextLimit: 5000` for Codex. The launcher verifies each chunk's
-hash against `hooks/chunks/manifest.json` and the assembled size against
+Every chunk has the same header, with its index and the first 12
+hexadecimal characters of the composite's SHA-256 bundle ID. The header also:
+
+- Says to apply the bundle only after all three chunks arrive
+- Preserves mode state when instructions arrive
+- States the precedence rule
+
+Each handler sets
+`additionalContextLimit: 5000` for Codex. The launcher checks each chunk hash
+against `hooks/chunks/manifest.json`. It checks the assembled size against
 both caps before printing. With the flag set and a broken install, it prints
-one JSON `systemMessage` and no context. Without the flag it prints nothing.
+one JSON `systemMessage` with no context. Without the flag, it prints nothing.
 
 ## Switches
 
@@ -126,14 +134,18 @@ node tools/sync.mjs --bump i-have-adhd <commit>    # or: --bump unslop <commit>
 git diff upstream/ skills/ hooks/chunks/ tools/upstream.json
 ```
 
-`--bump` fetches `SKILL.md` and `LICENSE` at the commit into
-`.sync-staging/`, refuses if the new body references files the composite
-cannot ship (`references/`, `scripts/`, `agents/`, relative links), warns
-about new rule numbers the overlay does not cite, fails if the overlay cites
-a rule that vanished, swaps the files in, rebuilds, runs the tests, and
-restores everything if anything fails. Review the diff afterward for new
-conflicts with the other skill; the outcome table in
-`overlay/10-precedence.md` is the place to record them.
+`--bump`:
+
+1. Fetches `SKILL.md` and `LICENSE` at the commit into `.sync-staging/`.
+2. Refuses a new body that references files the composite cannot ship:
+   `references/`, `scripts/`, `agents/`, or relative links.
+3. Warns about new rule numbers missing from the overlay.
+4. Fails if the overlay cites a rule that no longer exists.
+5. Swaps in the files, rebuilds, runs the tests, and restores everything if a
+   step fails.
+
+Review the diff for conflicts with the other skill. Record them in the
+outcome table in `overlay/10-precedence.md`.
 
 Edit only `overlay/*.md`, `tools/upstream.json`, and `VERSION`. Then:
 
@@ -142,14 +154,15 @@ node tools/build.mjs
 node --test tests/*.test.mjs
 ```
 
-`skills/adhd-unslop/SKILL.md`, `hooks/chunks/`, the license copies, and the
-version fields in the manifests are generated. A test fails if they are stale.
+`node tools/build.mjs` generates `skills/adhd-unslop/SKILL.md`,
+`hooks/chunks/`, the license copies, and the version fields in the manifests.
+A test fails if any of them go stale.
 
 ## Layout
 
 ```
 .claude-plugin/          Claude Code manifest and marketplace
-.codex-plugin/           Codex manifest ("skills": "./skills/")
+.codex-plugin/           Codex manifest. It declares "skills": "./skills/".
 .agents/plugins/         Codex marketplace
 hooks/hooks.json         SessionStart, three handlers
 hooks/always-on.mjs      launcher

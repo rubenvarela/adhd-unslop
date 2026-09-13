@@ -4,7 +4,11 @@ A mode is a rule set, either ADHD or unslop. Each mode has its own switch. A chu
 
 **Activation.** The user activates the skill with `/adhd-unslop` in Claude Code or `$adhd-unslop` in Codex. Explicit invocation enables both modes. The always-on hook can also activate the skill at session startup or clear.
 
-Hook delivery initializes mode defaults only after all three matching chunks are available. An incomplete bundle initializes neither mode. A complete bundle preserves known mode states and defaults each unknown mode to active.
+Hook delivery:
+
+1. Mode defaults initialize only after all three matching chunks are available.
+2. An incomplete bundle initializes neither mode.
+3. A complete bundle preserves known mode states and defaults each unknown mode to active.
 
 Switches:
 
@@ -15,7 +19,13 @@ Switches:
 
 Confirm each change in one line that names which modes are now active. Quoted or discussed control phrases are not commands.
 
-**State rule.** Restore the latest known state of each mode in this session. Explicit invocation enables both modes. Stop commands change only the named mode. Receiving or reloading these instructions preserves known states. Once a complete matching bundle is available, each unknown mode defaults to active.
+**State rule.**
+
+1. Restore the latest known state of each mode in this session.
+2. Explicit invocation enables both modes.
+3. Stop commands change only the named mode.
+4. Receiving or reloading these instructions preserves known states.
+5. Once a complete matching bundle is available, each unknown mode defaults to active.
 
 A newly completed bundle with a different hash replaces the rules without resetting mode states. Repeated chunks from an older bundle do not reactivate that bundle.
 
