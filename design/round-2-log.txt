@@ -1,0 +1,1067 @@
+OpenAI Codex v0.154.0
+--------
+workdir: /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: xhigh
+reasoning summaries: none
+session id: 01a09847-1ed7-7683-99ae-c41035e365d6
+--------
+user
+Round 2. I revised `design/PLAN.md` to v2 after your round 1 review. Read it again in full.
+
+What I accepted from round 1: option C with byte-for-byte upstream bodies and provenance comments instead of Part headings; passage-level surface classification with your wording as the base; protected-text rule; conditional (not blanket) handling of closing questions; the conflict inventory relabeled into real conflicts and tensions with corrected rows 4 to 6 and two new interactions (tone, announcements); Codex plugin hooks confirmed from the official docs (SessionStart with startup|resume|clear|compact, PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT, trust review, 2,500 token spill limit, additionalContextLimit per hook); licenses inside the skill directory; richer upstream pins (commit plus sha256 plus license) and a staged --bump; expanded tests and behavioral cases.
+
+What I pushed back on and why:
+- File-backed session state store: not built. The model would need a tool call on every stop command and the hook would need to read it back. Upstream i-have-adhd has the same limitation. The banner now says "If the reader turned a part off earlier in this session, keep it off", and the README documents the limitation. Tell me if you think that is wrong for a v1.
+- Behavioral tests: I did not adopt "test every documented installation route". The user asked for an interactive question and a doc write. I added mixed turn, long list, switches, and compaction. Versions are recorded per run.
+
+Your job this round:
+1. Re-attack v2. Focus on the precedence section and the outcome table as the model would read them. Would a model classify correctly and produce the intended text? Find any line that is ambiguous, contradicts an upstream rule without saying so, or is unnecessary.
+2. Answer the five open questions at the end.
+3. Check the hook and manifest claims against what you know of Claude Code and Codex. Flag anything that would fail `claude plugin validate` or Codex plugin loading.
+4. End with `## Verdict` containing exactly `CONSENSUS` or `REVISE` followed by a numbered list of blocking changes. Non-blocking suggestions go in a separate `## Optional` section.
+
+Terse, specific, quote the line you would change and give the replacement. No em dashes.
+
+hook: SessionStart
+hook: SessionStart Completed
+codex
+I’ll read v2 in full, then check the precedence rules, outcome table, and deployment claims. I’ll assess the documented persistence limitation as a v1 tradeoff.
+exec
+/bin/zsh -lc 'cat i-have-adhd--repo/.codex-plugin/plugin.json i-have-adhd--repo/.claude-plugin/plugin.json i-have-adhd--repo/hooks/hooks.json i-have-adhd--repo/hooks/always-on.mjs i-have-adhd--repo/skills/i-have-adhd/agents/openai.yaml i-have-adhd--repo/.agents/plugins/marketplace.json' in /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+ succeeded in 0ms:
+{
+  "name": "i-have-adhd",
+  "version": "0.3.0",
+  "description": "ADHD-friendly output shaping for Codex: action first, numbered steps, no tangents, and visible progress.",
+  "author": {
+    "name": "Ayoub G.",
+    "url": "https://github.com/ayghri"
+  },
+  "homepage": "https://github.com/ayghri/i-have-adhd",
+  "repository": "https://github.com/ayghri/i-have-adhd",
+  "license": "MIT",
+  "keywords": [
+    "adhd",
+    "output-style",
+    "productivity",
+    "skills",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "I Have ADHD",
+    "shortDescription": "Action-first output for ADHD readers",
+    "longDescription": "Shape Codex responses for an ADHD reader by leading with the next action, numbering multi-step work, suppressing tangents, restating state, and making progress visible.",
+    "developerName": "Ayoub G.",
+    "category": "Productivity",
+    "capabilities": [
+      "Instructions"
+    ],
+    "websiteURL": "https://github.com/ayghri/i-have-adhd",
+    "defaultPrompt": [
+      "Use i-have-adhd for this task.",
+      "Make this answer action-first and easy to execute.",
+      "Review this response for ADHD-friendly structure."
+    ],
+    "brandColor": "#2563EB",
+    "composerIcon": "./logo.png",
+    "logo": "./logo.png"
+  }
+}
+{
+  "name": "i-have-adhd",
+  "version": "0.3.0",
+  "description": "Shape Claude Code output for an ADHD reader: lead with the next action, number steps, suppress tangents, restate state, make wins visible.",
+  "author": {
+    "name": "Ayoub G.",
+    "url": "https://github.com/ayghri"
+  }
+}
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"(async()=>{const root=process.env.CLAUDE_PLUGIN_ROOT||process.env.PLUGIN_ROOT;if(root)await import(require('node:url').pathToFileURL(require('node:path').join(root,'hooks','always-on.mjs')).href)})().catch(()=>{})\"",
+            "timeout": 30,
+            "statusMessage": "Checking i-have-adhd always-on flag..."
+          }
+        ]
+      }
+    ]
+  }
+}
+// SessionStart hook: injects the full i-have-adhd ruleset when the user has
+// opted in by creating $CLAUDE_CONFIG_DIR/.i-have-adhd-always (default ~/.claude).
+// Never blocks session start: any failure exits 0.
+//
+// Runs under Node so it works on macOS, Linux, and Windows. The shared Claude
+// Code/Codex hook launches this module from the plugin-root environment rather
+// than relying on platform-specific shell expansion for the script path.
+// Native sh and PowerShell implementations remain available as fallbacks.
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+try {
+  const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+  const flagPath = path.join(claudeDir, ".i-have-adhd-always");
+
+  // Only fire when the user has opted in.
+  if (!fs.existsSync(flagPath)) process.exit(0);
+
+  // Resolve SKILL.md relative to this script's own location, not a trusted env var.
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+  const skillPath = path.join(scriptDir, "..", "skills", "i-have-adhd", "SKILL.md");
+  if (!fs.existsSync(skillPath)) process.exit(0);
+
+  // Strip a leading YAML frontmatter block (--- ... --- at the very top of file).
+  const body = fs
+    .readFileSync(skillPath, "utf8")
+    .replace(
+      /^---[^\S\r\n]*\r?\n[\s\S]*?\r?\n---[^\S\r\n]*(?:\r?\n|$)/,
+      "",
+    )
+    .replace(/(?:\r?\n)+$/, "");
+
+  process.stdout.write(
+    "ADHD MODE ACTIVE (always-on). The ruleset below applies to every response. " +
+      '"stop adhd mode" turns it off for this session; ' +
+      `delete ${flagPath} to turn always-on off for good.\n\n${body}\n`,
+  );
+} catch {
+  // Never block session start.
+  process.exit(0);
+}
+interface:
+  display_name: "I Have ADHD"
+  short_description: "Action-first output for ADHD readers"
+  default_prompt: "Use $i-have-adhd to make this response action-first and easy to execute."
+
+policy:
+  allow_implicit_invocation: false
+{
+  "name": "i-have-adhd",
+  "interface": {
+    "displayName": "I Have ADHD"
+  },
+  "plugins": [
+    {
+      "name": "i-have-adhd",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ayghri/i-have-adhd.git",
+        "ref": "main"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
+
+exec
+/bin/zsh -lc 'nl -ba design/PLAN.md' in /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+ succeeded in 0ms:
+     1	# Plan: run i-have-adhd and unslop together with defined tie-breaking
+     2	
+     3	Status: v2. Revised after Codex round 1 (design/round-1-codex.md).
+     4	
+     5	## Goal
+     6	
+     7	Ship one installable plugin (Claude Code and Codex) that applies both the
+     8	`i-have-adhd` skill and pstack's `unslop` skill, keeps every rule, example,
+     9	exception, process, and checklist of both, resolves their conflicts with one
+    10	precedence rule, and stays easy to upgrade when either upstream changes.
+    11	
+    12	## Fixed requirements (user's decision)
+    13	
+    14	1. Keep all features of both skills.
+    15	2. Tie-break: text that is a direct reply to the user follows i-have-adhd on
+    16	   conflict; all other text follows unslop on conflict.
+    17	3. Installs and runs on Claude Code and Codex CLI using the mechanisms the two
+    18	   upstream repos already use.
+    19	4. Easy to upgrade when either upstream changes.
+    20	
+    21	## Upstreams
+    22	
+    23	| Upstream | Path in upstream repo | License |
+    24	| --- | --- | --- |
+    25	| ayghri/i-have-adhd | `skills/i-have-adhd/SKILL.md` | MIT (`LICENSE`) |
+    26	| michael-denyer/pstack-claude | `plugins/pstack/skills/unslop/SKILL.md` | MIT (`LICENSE`), original by Lauren Tan (cursor/plugins pstack) |
+    27	
+    28	The full clones at `i-have-adhd--repo/` and `pstack-claude--repo/` in this
+    29	scratch directory are reference material only. Nothing reads them at build or
+    30	run time.
+    31	
+    32	## Interactions between the two skills
+    33	
+    34	Candidate interactions, sorted into real conflicts (both rules apply to the
+    35	same span and cannot both be satisfied) and tensions (both can usually be
+    36	satisfied; the overlay says how). Each upstream's own exceptions constrain
+    37	its own rules first. Examples in either skill illustrate their rule; they do
+    38	not create blanket exemptions.
+    39	
+    40	Real conflicts:
+    41	
+    42	1. Fragments. ADHD "Good" examples model label-and-fragment shape ("Step 3 of
+    43	   5 done: schema updated. Next: backfill."). Unslop rule 33 (over-compression)
+    44	   and rule 32 (rhetorical fragments) reject that shape. Unslop rule 14 rejects
+    45	   the connector colon. (Rule 16 targets a bold label that restates the line;
+    46	   it is not in play for a plain "Next:" label.)
+    47	2. Parentheses as separators. ADHD rule 2 example writes "(lines 42 to 58)".
+    48	   Unslop rule 13 bans parentheses as dash substitutes.
+    49	3. Closing question. ADHD rule 4 ends with "Want me to handle that next?" and
+    50	   rule 5 with "Run the script?". Unslop rule 20 removes offer-style closers.
+    51	   ADHD rule 10 also bans closers, and ADHD exception 6 says do authorized
+    52	   work instead of asking. ADHD's ambiguity, destructive-action, debug-spiral,
+    53	   and tangent rules require a question in their stated cases.
+    54	
+    55	Tensions:
+    56	
+    57	4. Estimates. ADHD rule 6 asks for a concrete ballpark when duration matters.
+    58	   Unslop rule 30 replaces vague adverbs with the measured number. Both can be
+    59	   satisfied: give a ballpark, label it as one, name the assumption, never
+    60	   present it as a measurement.
+    61	5. State restatement. ADHD rule 5 requires restating progress each turn and
+    62	   allows a task checklist to do it. Unslop rule 27 cuts sentences that carry
+    63	   no project-specific information. A concrete status line ("Step 3 of 5
+    64	   done. The schema has the new column.") satisfies both.
+    65	6. List length. ADHD rule 9 aims for five per group and forbids omitting
+    66	   items when completeness matters. Unslop rule 10 rejects forced triples.
+    67	   Both can be satisfied.
+    68	7. Audience and tone. Unslop's process says "match intended tone". ADHD's
+    69	   shape is for the chat reader. Imposing "Next: run X" structure on a README
+    70	   for a different audience breaks unslop's tone rule. Resolved by surface.
+    71	8. Tool announcements and harness rules. ADHD rule 10 and pre-send check 1
+    72	   delete openers; ADHD exception 6 keeps a harness-required announcement.
+    73	   The overlay repeats: the runtime's system prompt outranks both skills.
+    74	
+    75	Lifecycle gaps (not rule conflicts): no tiebreaker stated anywhere; ADHD has
+    76	"stop adhd mode" but unslop has no off switch; "normal mode" is ambiguous
+    77	about unslop.
+    78	
+    79	## Precedence rule
+    80	
+    81	All rules from both skills apply to every passage the model authors or
+    82	edits. First apply each skill's own conditions and exceptions. A conflict
+    83	exists when satisfying one applicable instruction would violate another.
+    84	Resolve a cross-skill conflict by the passage's surface. Compatible
+    85	instructions stay in force everywhere. Example: ADHD says nothing about em
+    86	dashes or "delve", so unslop rules 13 and 7 apply to replies too.
+    87	
+    88	### Surfaces, classified per passage
+    89	
+    90	Direct reply. Text that talks to the current user about their request in
+    91	this conversation. Answers, progress reports, tool-call announcements the
+    92	runtime requires, clarifying questions, status restatements, task or plan
+    93	tool entries the user reads, a command or snippet offered as the user's next
+    94	step.
+    95	
+    96	Other writing. Everything else the model authors or edits. Requested
+    97	deliverables wherever they are displayed (a doc drafted inline in the chat is
+    98	still a deliverable), files written or edited, code comments and
+    99	natural-language strings where the task permits editing them, commit
+   100	messages, PR and issue text, messages for third parties, application copy,
+   101	instructions to subagents, reports from one agent to another, compaction
+   102	summaries, and any text the user handed over to be rewritten, edited, or
+   103	translated. Text supplied for rewriting is editable; quotation marks around
+   104	it do not exempt it.
+   105	
+   106	Rules for the boundary:
+   107	
+   108	- Classify each passage on its own. One turn can contain both surfaces. The
+   109	  sentence that says "I wrote docs/links.md" is a direct reply; the file body
+   110	  is other writing.
+   111	- Fences, transport, and persistence do not decide. A fenced command the user
+   112	  will run next is a direct reply. An unfenced README draft is other writing.
+   113	- Protected text is preserved by both skills and never rewritten: syntax,
+   114	  identifiers, paths, URLs, schemas, exact-match data, required output
+   115	  formats, and text the user explicitly asked to keep verbatim.
+   116	- Workflow rules govern conduct under their own conditions. Do not insert
+   117	  session bookkeeping (status lines, next-action lines, estimates) into a
+   118	  deliverable because both skills are active.
+   119	
+   120	### Outcome table
+   121	
+   122	The model applies this table instead of deriving the outcome.
+   123	
+   124	| Interaction | Direct reply (ADHD wins) | Other writing (unslop wins) |
+   125	| --- | --- | --- |
+   126	| 1 Fragments | Label-and-fragment status and error lines are allowed ("Step 3 of 5 done: schema updated." "Cause: missing header. Fix: add it."). Everything else is a whole sentence. | Whole sentences with articles and verbs. No connector colon. |
+   127	| 2 Parentheses | Allowed for a locator only ("(lines 42 to 58)", "(see `auth.ts:42`)"). Not for an aside. | Rewrite as a sentence or a comma clause. |
+   128	| 3 Closing question | When work remains, end with one next action or one necessary question. Prefer the imperative ("Run `npm test` and paste the first failing line."). Ask a question only where ADHD requires one: a separate tangent, real ambiguity, a destructive action, or a debug spiral. Do not ask permission again for work already authorized; the runtime's rules on asking outrank both skills. | Remove stock closers. Keep a closing request or action the deliverable itself requires, such as the decision an email asks for. |
+   129	| 4 Estimates | Give a ballpark when the reader must plan or start. Say whose time, name the main assumption, use a range when unsure. If you cannot estimate responsibly, say what to check first. | Keep an estimate the document needs, with its assumption. Never present a ballpark as a measurement. |
+   130	| 5 State | Restate progress each turn of multi-step work through the checklist or one concrete line. Do not narrate the whole plan again. | Include status only when it is the document's content. No session bookkeeping. |
+   131	| 6 Lists | Aim for five per group. Show every item when completeness matters. | Natural count. Completeness wins. |
+   132	| 7 Tone | ADHD shape for the chat reader. | Match the deliverable's audience and intended tone. |
+   133	| 8 Announcements | Delete openers except an announcement the runtime requires. | Not applicable. |
+   134	
+   135	## Lifecycle
+   136	
+   137	Activation. The skill is active when the user invokes it (`/adhd-unslop` in
+   138	Claude Code, `$adhd-unslop` in Codex) or when the always-on hook injects it
+   139	at session `startup` or `clear`. Both parts start active. Neither runtime
+   140	lets the model invoke it on its own (`disable-model-invocation: true` for
+   141	Claude Code, `allow_implicit_invocation: false` for Codex).
+   142	
+   143	Two independent switches, tracked by the model for the session:
+   144	
+   145	- "stop adhd mode": ADHD part off, unslop stays on. Confirm in one line.
+   146	- "stop unslop": unslop off, ADHD part stays on. Confirm in one line.
+   147	- "normal mode": both off. Confirm in one line.
+   148	- Invoking the skill again turns both back on.
+   149	
+   150	Persistence. Active parts stay active for the rest of the session, across
+   151	topic changes. The hook also fires on `resume` and `compact` to restore the
+   152	text after context loss. Re-injection does not reset switches: the banner
+   153	says "If the reader turned a part off earlier in this session, keep it off."
+   154	Quoted or discussed control phrases are not commands.
+   155	
+   156	Not built: a file-backed session state store. The model would need a tool
+   157	call on every stop command and the hook would need to read it. Upstream
+   158	i-have-adhd has the same limitation and documents it. The banner wording
+   159	plus the model's own transcript is the state. README states this limitation.
+   160	
+   161	## Architecture: vendored sources plus a generated composite skill
+   162	
+   163	Chosen over a hand-merged single skill (every upstream change becomes a hand
+   164	merge, and the earlier `unslop-final` attempt rewrote ADHD's examples, which
+   165	loses the ADHD reply shape) and over three separately loaded skills (three
+   166	documents for the model to juggle, three invocations, same token cost).
+   167	
+   168	### Composite layout
+   169	
+   170	`skills/adhd-unslop/SKILL.md` is generated by `tools/build.mjs`:
+   171	
+   172	```
+   173	---                                    frontmatter (ours)
+   174	name: adhd-unslop
+   175	description: ...
+   176	disable-model-invocation: true
+   177	license: MIT
+   178	---
+   179	# adhd-unslop                          overlay/00-intro.md
+   180	## Scope, surfaces, and precedence     overlay/10-precedence.md (this plan's section)
+   181	## Lifecycle                           overlay/20-lifecycle.md
+   182	<!-- BEGIN upstream i-have-adhd skills/i-have-adhd/SKILL.md @<commit> -->
+   183	<upstream body byte-for-byte, frontmatter removed, headings untouched>
+   184	<!-- END upstream i-have-adhd -->
+   185	<!-- BEGIN upstream pstack-claude plugins/pstack/skills/unslop/SKILL.md @<commit> -->
+   186	<upstream body byte-for-byte, frontmatter removed>
+   187	<!-- END upstream unslop -->
+   188	## Final check                         overlay/90-final-check.md
+   189	```
+   190	
+   191	Rules for the composite:
+   192	
+   193	- Upstream bodies are copied exactly after removing the leading YAML
+   194	  frontmatter. Headings, examples, fences, and rule numbers are untouched.
+   195	  Tests assert byte equality between the marker pairs and the stripped
+   196	  upstream files.
+   197	- The frontmatter description of unslop ("Must always apply") is carried into
+   198	  the overlay as an explicit mandate: unslop applies to every prose surface
+   199	  while active.
+   200	- Citations: "ADHD rule N", "ADHD exception N", "ADHD check N", "unslop rule
+   201	  N", "unslop process N".
+   202	- Final check (overlay) runs both upstream checklists in order, under the
+   203	  precedence rule. It must not undo a winning ADHD instruction on a direct
+   204	  reply, and must not replace either upstream process.
+   205	- Both upstream LICENSE files and a NOTICE with provenance live inside the
+   206	  skill directory (`skills/adhd-unslop/LICENSES/`) so a skills-only install
+   207	  carries attribution. Root `LICENSE` and `NOTICE.md` repeat it.
+   208	
+   209	### Repo layout
+   210	
+   211	Mirrors ayghri/i-have-adhd, which already installs on both runtimes.
+   212	
+   213	```
+   214	.
+   215	├── .claude-plugin/plugin.json            Claude Code manifest (version stamped from VERSION)
+   216	├── .claude-plugin/marketplace.json       lets `claude plugin marketplace add <owner>/<repo>` work
+   217	├── .codex-plugin/plugin.json             Codex manifest, "skills": "./skills/"
+   218	├── .agents/plugins/marketplace.json      Codex marketplace
+   219	├── hooks/hooks.json                      SessionStart, matcher startup|resume|clear|compact
+   220	├── hooks/always-on.mjs                   reads flag, prints banner + composite body
+   221	├── skills/adhd-unslop/SKILL.md           GENERATED
+   222	├── skills/adhd-unslop/agents/openai.yaml Codex: allow_implicit_invocation false
+   223	├── skills/adhd-unslop/LICENSES/          upstream LICENSE files + NOTICE
+   224	├── upstream/i-have-adhd/SKILL.md         pristine, synced
+   225	├── upstream/i-have-adhd/LICENSE
+   226	├── upstream/unslop/SKILL.md              pristine, synced
+   227	├── upstream/unslop/LICENSE
+   228	├── overlay/*.md                          hand-written sections
+   229	├── tools/upstream.json                   pins: repo, path, commit, sha256, license path
+   230	├── tools/sync.mjs                        fetch at pin, verify hash, --bump to advance
+   231	├── tools/build.mjs                       compose SKILL.md, stamp versions, copy licenses
+   232	├── tests/*.test.mjs                      node:test, no dependencies
+   233	├── VERSION
+   234	├── README.md
+   235	├── LICENSE, NOTICE.md
+   236	└── design/                               this plan and the Codex rounds
+   237	```
+   238	
+   239	### Hook (both runtimes)
+   240	
+   241	Codex supports plugin `hooks/hooks.json` with `SessionStart` sources
+   242	`startup|resume|clear|compact`, sets `PLUGIN_ROOT` and `CLAUDE_PLUGIN_ROOT`,
+   243	and requires the user to review and trust plugin hooks once in `/hooks`
+   244	(developers.openai.com/codex/hooks). The upstream i-have-adhd launcher
+   245	already reads both env vars, so the same `hooks.json` serves both runtimes.
+   246	
+   247	Codex caps model-visible hook output at about 2,500 tokens and replaces
+   248	larger output with a preview ("spilling"). The composite is roughly 4,500
+   249	tokens. `hooks.json` sets `additionalContextLimit` to 12000 on the hook
+   250	entry. Claude Code ignores unknown hook keys (to be verified with `claude
+   251	plugin validate .` during build). A test computes a token estimate of the
+   252	composite body and fails if it exceeds 80 percent of the configured limit.
+   253	
+   254	Flag file. The hook prints only when an opt-in flag exists:
+   255	`$CLAUDE_CONFIG_DIR/.adhd-unslop-always` (default `~/.claude`) or
+   256	`$CODEX_HOME/.adhd-unslop-always` (default `~/.codex`). Either file enables
+   257	always-on in both runtimes. Any failure exits 0 and prints nothing.
+   258	
+   259	Banner text:
+   260	
+   261	```
+   262	ADHD-UNSLOP MODE ACTIVE (always-on). The ruleset below applies to every
+   263	response. If the reader turned a part off earlier in this session ("stop
+   264	adhd mode", "stop unslop", "normal mode"), keep it off. Delete <flag path>
+   265	to turn always-on off for good.
+   266	```
+   267	
+   268	Codex fallback without hooks: README gives a `~/.codex/AGENTS.md` snippet
+   269	that instructs the model to invoke `$adhd-unslop` at the start of every
+   270	session. The snippet contains no rules of its own; a summary is not the
+   271	skill.
+   272	
+   273	Codex prompt stub (`.codex-plugin/prompts/adhd-unslop.md`) is an optional
+   274	slash shortcut. Not shipped in v1; README notes how to add one.
+   275	
+   276	### Upgrade flow
+   277	
+   278	```
+   279	node tools/sync.mjs --check                     # upstream/ matches pinned sha256
+   280	node tools/sync.mjs --bump i-have-adhd <commit> # fetch at commit, stage, print diff
+   281	node tools/build.mjs                            # regenerate composite, stamp versions
+   282	node --test tests/                              # invariants
+   283	git diff upstream/ skills/ overlay/             # read what changed; update overlay citations if a rule moved
+   284	```
+   285	
+   286	`--bump` fetches SKILL.md and LICENSE from raw.githubusercontent.com at the
+   287	commit, writes them under `upstream/<name>/`, updates commit and sha256 in
+   288	`upstream.json`, then runs the build and tests. If tests fail it leaves the
+   289	tree for inspection and does not amend the pin. The sync also greps the new
+   290	upstream body for relative links or paths (`references/`, `scripts/`,
+   291	`agents/`) and fails if any appear, since the composite ships only SKILL.md.
+   292	
+   293	## Tests (node:test, `node --test tests/`)
+   294	
+   295	1. Composite equals fresh `build.mjs` output.
+   296	2. Each upstream body appears byte-for-byte between its markers; nothing
+   297	   else sits between the marker pairs.
+   298	3. `upstream/*/SKILL.md` and `LICENSE` match `upstream.json` sha256.
+   299	4. Overlay text passes mechanical unslop checks: no em dash, no en dash used
+   300	   as a dash, no curly quotes, no "not just", no rule 7 vocabulary, no title
+   301	   case headings, no decorative emoji.
+   302	5. Precedence section names both surfaces and the outcome table has one row
+   303	   per interaction in a shared `tests/interactions.json`.
+   304	6. Overlay carries the unslop "always apply" mandate and all three switches.
+   305	7. Hook: silent without flag; prints banner and body with the Claude flag and
+   306	   with the Codex flag; strips frontmatter; exits 0 with empty stdout when
+   307	   SKILL.md is missing; works with `CLAUDE_PLUGIN_ROOT` and with
+   308	   `PLUGIN_ROOT`.
+   309	8. `hooks.json`: matcher covers all four sources; command references both
+   310	   root env vars; `additionalContextLimit` is at least 1.25 times the
+   311	   composite's estimated tokens.
+   312	9. Frontmatter: `name` equals directory name, `disable-model-invocation:
+   313	   true`, description under 1024 chars. `openai.yaml` has
+   314	   `allow_implicit_invocation: false`.
+   315	10. Manifests: both plugin.json and both marketplace.json carry `VERSION`.
+   316	11. `skills/adhd-unslop/LICENSES/` holds both upstream licenses and a NOTICE
+   317	    naming both repos and commits.
+   318	12. No relative links or file references in the composite that point outside
+   319	    `skills/adhd-unslop/`.
+   320	
+   321	## Behavioral test (manual, recorded in design/BEHAVIOR.md)
+   322	
+   323	Record Claude Code version, Codex version, and model for each run. Run on
+   324	Claude Code with the flag set and on Codex with `$adhd-unslop`.
+   325	
+   326	1. Interactive question. "What's the difference between a symlink and a hard
+   327	   link? I'm on macOS." Expect: answer first, no preamble, no closer, no em
+   328	   dash, no rule 7 words, fragments and locator parentheses tolerated.
+   329	2. Doc write. "Write `docs/links.md` explaining symlinks vs hard links for a
+   330	   junior dev." Expect file body: whole sentences, no connector colon, no
+   331	   status line, no estimate, no next-action line, natural list lengths,
+   332	   sentence-case headings. Expect chat reply: ADHD shape, reports the write,
+   333	   one next action.
+   334	3. Mixed turn. "Fix the typo in README.md line 3 and tell me what else looks
+   335	   off." Expect: the edit follows unslop; the reply follows ADHD; the "what
+   336	   else" list is ranked, capped at five with the rest offered.
+   337	4. Long list. "List every HTTP status code in the 4xx range with one line
+   338	   each." Expect: complete list (ADHD rule 9 completeness clause), grouped,
+   339	   not truncated.
+   340	5. Switches. Say "stop adhd mode", ask a question, say "stop unslop", ask a
+   341	   question, say "normal mode", ask a question. Expect one-line confirmations
+   342	   and the right part off each time.
+   343	6. Compaction. On Claude Code, run `/compact` after step 5 and ask a
+   344	   question. Expect the earlier "normal mode" to still hold.
+   345	
+   346	## Open questions for round 2
+   347	
+   348	1. Does the surface classification still leave a case the model would have
+   349	   to guess? Candidate: a plan the model shows in chat for approval before
+   350	   acting. Proposed: direct reply.
+   351	2. Is the outcome table row 1 too permissive? It allows "Cause: X. Fix: Y."
+   352	   on the reply surface, which is the ADHD rule 8 example.
+   353	3. Any objection to dropping the file-backed state store, given the banner
+   354	   wording and the upstream precedent?
+   355	4. Is `additionalContextLimit: 12000` the right key and value for Codex? Is
+   356	   there a risk Claude Code rejects the unknown key?
+   357	5. Should `--bump` refuse when the new upstream body adds a heading or rule
+   358	   number the overlay does not cite, or only warn?
+
+web search: 
+exec
+/bin/zsh -lc "claude plugin validate --help; claude --version; codex --version; cat i-have-adhd--repo/.claude-plugin/marketplace.json; sed -n '/### Codex/,/### Prime Agent/p' pstack-claude--repo/README.md" in /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+ succeeded in 0ms:
+Usage: claude plugin validate [options] <path>
+
+Validate a plugin or marketplace manifest, or the skills, agents, and commands
+in a directory
+
+Options:
+  -h, --help  Display help for command
+  --json      Output the validation report as JSON (same exit codes)
+  --strict    Treat warnings as errors (exit 1). Use in CI to fail on
+              unrecognized fields, missing metadata, and other issues that the
+              runtime tolerates.
+2.1.270 (Claude Code)
+WARNING: proceeding, even though we could not create PATH aliases: Operation not permitted (os error 1)
+codex-cli 0.154.0
+{
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
+  "name": "i-have-adhd",
+  "description": "Shape Claude Code output for an ADHD reader. Action-first, numbered steps, no tangents.",
+  "owner": {
+    "name": "Ayoub G."
+  },
+  "plugins": [
+    {
+      "name": "i-have-adhd",
+      "description": "Action-first, ADHD-friendly output shaping for Claude Code.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}
+### Codex
+
+The same plugin carries a `.codex-plugin/plugin.json` manifest and a root `.agents/plugins/marketplace.json`. Use the [shared Agent Skills install](#shared-agent-skills-install). This path is verified on a live Codex session.
+
+Codex discovers the linked skills and namespaces them under the plugin, so they list as `pstack:poteto-mode`, `pstack:tdd`, and so on. The namespace comes from `plugins/pstack/.codex-plugin/plugin.json` and resolves through the flat symlinks, even though each linked skill sits one directory below that manifest (verified on a live session via this symlink install). To enable the multi-model and parallel-subagent skills (`interrogate`, `arena`, `how`, `why`, `reflect`, `architect`), turn on subagents in `~/.codex/config.toml`:
+
+```toml
+[features]
+multi_agent = true
+```
+
+For slash-command shortcuts (`/poteto-mode`, `/tdd`, and the rest), link the command files into Codex's prompts directory:
+
+```shell
+mkdir -p ~/.codex/prompts
+for c in plugins/pstack/.codex-plugin/prompts/*.md; do ln -s "$PWD/$c" ~/.codex/prompts/"$(basename "$c")"; done
+```
+
+Each command invokes its skill, so `/tdd` runs the `tdd` skill. Installing the full plugin through the Codex marketplace (the root `.agents/plugins/marketplace.json`) carries skills and commands together. The skill links plus prompt links are the verified local path. Teardown for a prompt is `rm ~/.codex/prompts/<name>.md`.
+
+### Prime Agent
+
+web search: https://learn.chatgpt.com/docs/hooks
+codex
+The switches are not independent as written: after “stop adhd mode,” the wording for “stop unslop” turns ADHD back on. Row 1 also excludes “Next:” fragments outside status and error lines. I’m checking the hook setting and marketplace version fields with Claude’s validator in temporary fixtures.
+exec
+/bin/zsh -lc "python3 - <<'PY'
+import json, pathlib, subprocess, tempfile
+with tempfile.TemporaryDirectory(prefix='adhd-unslop-v2-validate-') as d:
+    root=pathlib.Path(d)
+    (root/'.claude-plugin').mkdir()
+    (root/'hooks').mkdir()
+    manifest={'name':'adhd-unslop','version':'0.1.0','description':'Apply two writing skills with explicit precedence.','author':{'name':'Review fixture'}}
+    (root/'.claude-plugin/plugin.json').write_text(json.dumps(manifest))
+    handler={'type':'command','command':'node -e \"process.exit(0)\"','timeout':30,'additionalContextLimit':12000}
+    hookdoc={'hooks':{'SessionStart':[{'matcher':'startup|resume|clear|compact','hooks':[handler]}]}}
+    (root/'hooks/hooks.json').write_text(json.dumps(hookdoc))
+    for label,args in [('plugin_with_hook_key',[str(root)]),('hook_file',[str(root/'hooks/hooks.json')])]:
+        p=subprocess.run(['claude','plugin','validate',*args,'--json'],capture_output=True,text=True,timeout=30)
+        print(json.dumps({'case':label,'exit':p.returncode,'stdout':p.stdout,'stderr':p.stderr}))
+    marketplace={'name':'adhd-unslop','version':'0.1.0','owner':{'name':'Review fixture'},'plugins':[{'name':'adhd-unslop','source':'./','version':'0.1.0'}]}
+    target=root/'.claude-plugin/marketplace.json'
+    target.write_text(json.dumps(marketplace))
+    for label,args in [('marketplace_root_version',[str(target)]),('marketplace_strict',[str(target),'--strict'])]:
+        p=subprocess.run(['claude','plugin','validate',*args,'--json'],capture_output=True,text=True,timeout=30)
+        print(json.dumps({'case':label,'exit':p.returncode,'stdout':p.stdout,'stderr':p.stderr}))
+PY" in /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+ succeeded in 1756ms:
+{"case": "plugin_with_hook_key", "exit": 0, "stdout": "{\n  \"success\": true,\n  \"strict\": false,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-v2-validate-bue3f2oc/.claude-plugin/plugin.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-v2-validate-bue3f2oc/.claude-plugin/plugin.json\",\n    \"type\": \"plugin\",\n    \"errors\": [],\n    \"warnings\": [],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+{"case": "hook_file", "exit": 1, "stdout": "{\n  \"success\": false,\n  \"strict\": false,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-v2-validate-bue3f2oc/hooks/hooks.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-v2-validate-bue3f2oc/hooks/hooks.json\",\n    \"type\": \"plugin\",\n    \"errors\": [\n      {\n        \"path\": \"name\",\n        \"message\": \"Invalid input\",\n        \"code\": null\n      }\n    ],\n    \"warnings\": [],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+{"case": "marketplace_root_version", "exit": 0, "stdout": "{\n  \"success\": true,\n  \"strict\": false,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-v2-validate-bue3f2oc/.claude-plugin/marketplace.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-v2-validate-bue3f2oc/.claude-plugin/marketplace.json\",\n    \"type\": \"marketplace\",\n    \"errors\": [],\n    \"warnings\": [\n      {\n        \"path\": \"description\",\n        \"message\": \"No marketplace description provided. Adding a description helps users understand what this marketplace offers\",\n        \"code\": null\n      }\n    ],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+{"case": "marketplace_strict", "exit": 1, "stdout": "{\n  \"success\": false,\n  \"strict\": true,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-v2-validate-bue3f2oc/.claude-plugin/marketplace.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-v2-validate-bue3f2oc/.claude-plugin/marketplace.json\",\n    \"type\": \"marketplace\",\n    \"errors\": [],\n    \"warnings\": [\n      {\n        \"path\": \"description\",\n        \"message\": \"No marketplace description provided. Adding a description helps users understand what this marketplace offers\",\n        \"code\": null\n      }\n    ],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+
+web search: 
+web search: 'same name as the plugin' in https://code.claude.com/docs/en/skills
+web search: 
+exec
+/bin/zsh -lc "python3 - <<'PY'
+import json, pathlib, subprocess, tempfile
+with tempfile.TemporaryDirectory(prefix='adhd-unslop-inline-validate-') as d:
+    root=pathlib.Path(d)
+    (root/'.claude-plugin').mkdir()
+    for label,command,extra in [('baseline','node -e \"process.exit(0)\"',{}),('unknown_key','node -e \"process.exit(0)\"',{'additionalContextLimit':12000}),('invalid_command',123,{})]:
+        handler={'type':'command','command':command,**extra}
+        doc={'name':'adhd-unslop','version':'0.1.0','description':'Review fixture','author':{'name':'Review fixture'},'hooks':{'hooks':{'SessionStart':[{'matcher':'startup|resume|clear|compact','hooks':[handler]}]}}}
+        target=root/'.claude-plugin/plugin.json'
+        target.write_text(json.dumps(doc))
+        p=subprocess.run(['claude','plugin','validate',str(root),'--strict','--json'],capture_output=True,text=True,timeout=30)
+        print(json.dumps({'case':label,'exit':p.returncode,'stdout':p.stdout,'stderr':p.stderr}))
+PY" in /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+web search: https://developers.openai.com/codex/plugins/build
+ succeeded in 1130ms:
+{"case": "baseline", "exit": 1, "stdout": "{\n  \"success\": false,\n  \"strict\": true,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-inline-validate-x3ibtae0/.claude-plugin/plugin.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-inline-validate-x3ibtae0/.claude-plugin/plugin.json\",\n    \"type\": \"plugin\",\n    \"errors\": [],\n    \"warnings\": [\n      {\n        \"path\": \"hooks\",\n        \"message\": \"hooks.hooks: unknown hook event; entry ignored at runtime\",\n        \"code\": null\n      }\n    ],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+{"case": "unknown_key", "exit": 1, "stdout": "{\n  \"success\": false,\n  \"strict\": true,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-inline-validate-x3ibtae0/.claude-plugin/plugin.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-inline-validate-x3ibtae0/.claude-plugin/plugin.json\",\n    \"type\": \"plugin\",\n    \"errors\": [],\n    \"warnings\": [\n      {\n        \"path\": \"hooks\",\n        \"message\": \"hooks.hooks: unknown hook event; entry ignored at runtime\",\n        \"code\": null\n      }\n    ],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+{"case": "invalid_command", "exit": 1, "stdout": "{\n  \"success\": false,\n  \"strict\": true,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-inline-validate-x3ibtae0/.claude-plugin/plugin.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-inline-validate-x3ibtae0/.claude-plugin/plugin.json\",\n    \"type\": \"plugin\",\n    \"errors\": [],\n    \"warnings\": [\n      {\n        \"path\": \"hooks\",\n        \"message\": \"hooks.hooks: unknown hook event; entry ignored at runtime\",\n        \"code\": null\n      }\n    ],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+
+exec
+/bin/zsh -lc "python3 - <<'PY'
+import json, pathlib, subprocess, tempfile
+with tempfile.TemporaryDirectory(prefix='adhd-unslop-handler-validate-') as d:
+    root=pathlib.Path(d)
+    (root/'.claude-plugin').mkdir()
+    for label,command,extra in [('baseline','node -e \"process.exit(0)\"',{}),('unknown_key','node -e \"process.exit(0)\"',{'additionalContextLimit':12000}),('invalid_command',123,{})]:
+        handler={'type':'command','command':command,**extra}
+        doc={'name':'adhd-unslop','version':'0.1.0','description':'Review fixture','author':{'name':'Review fixture'},'hooks':{'SessionStart':[{'matcher':'startup|resume|clear|compact','hooks':[handler]}]}}
+        target=root/'.claude-plugin/plugin.json'
+        target.write_text(json.dumps(doc))
+        p=subprocess.run(['claude','plugin','validate',str(root),'--strict','--json'],capture_output=True,text=True,timeout=30)
+        print(json.dumps({'case':label,'exit':p.returncode,'stdout':p.stdout,'stderr':p.stderr}))
+PY" in /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+ succeeded in 353ms:
+{"case": "baseline", "exit": 0, "stdout": "{\n  \"success\": true,\n  \"strict\": true,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-handler-validate-cmq8hy8v/.claude-plugin/plugin.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-handler-validate-cmq8hy8v/.claude-plugin/plugin.json\",\n    \"type\": \"plugin\",\n    \"errors\": [],\n    \"warnings\": [],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+{"case": "unknown_key", "exit": 0, "stdout": "{\n  \"success\": true,\n  \"strict\": true,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-handler-validate-cmq8hy8v/.claude-plugin/plugin.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-handler-validate-cmq8hy8v/.claude-plugin/plugin.json\",\n    \"type\": \"plugin\",\n    \"errors\": [],\n    \"warnings\": [],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+{"case": "invalid_command", "exit": 1, "stdout": "{\n  \"success\": false,\n  \"strict\": true,\n  \"target\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-handler-validate-cmq8hy8v/.claude-plugin/plugin.json\",\n  \"manifest\": {\n    \"file\": \"/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-handler-validate-cmq8hy8v/.claude-plugin/plugin.json\",\n    \"type\": \"plugin\",\n    \"errors\": [],\n    \"warnings\": [\n      {\n        \"path\": \"hooks\",\n        \"message\": \"hooks.SessionStart.0.hooks.0: Invalid command hook (command: Invalid input); entry ignored at runtime\",\n        \"code\": null\n      }\n    ],\n    \"notes\": []\n  },\n  \"contents\": []\n}\n", "stderr": ""}
+
+web search: 
+web search: 'marketplace.json'
+exec
+/bin/zsh -lc "python3 - <<'PY'
+import json, pathlib, subprocess, tempfile
+with tempfile.TemporaryDirectory(prefix='adhd-unslop-hook-path-validate-') as d:
+    root=pathlib.Path(d)
+    (root/'.claude-plugin').mkdir()
+    (root/'hooks').mkdir()
+    (root/'hooks/hooks.json').write_text(json.dumps({'hooks':{'SessionStart':[{'matcher':'startup','hooks':[{'type':'command','command':123}]}]}}))
+    for explicit in [False, True]:
+        doc={'name':'adhd-unslop','version':'0.1.0','description':'Review fixture','author':{'name':'Review fixture'}}
+        if explicit: doc['hooks']='./hooks/hooks.json'
+        (root/'.claude-plugin/plugin.json').write_text(json.dumps(doc))
+        p=subprocess.run(['claude','plugin','validate',str(root),'--strict','--json'],capture_output=True,text=True,timeout=30)
+        print(json.dumps({'explicit_hook_path':explicit,'exit':p.returncode,'report':json.loads(p.stdout)}))
+PY" in /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+ succeeded in 222ms:
+{"explicit_hook_path": false, "exit": 1, "report": {"success": false, "strict": true, "target": "/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-hook-path-validate-6dz5rboj/.claude-plugin/plugin.json", "manifest": {"file": "/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-hook-path-validate-6dz5rboj/.claude-plugin/plugin.json", "type": "plugin", "errors": [], "warnings": [], "notes": []}, "contents": [{"file": "/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-hook-path-validate-6dz5rboj/hooks/hooks.json", "type": "hooks", "errors": [], "warnings": [{"path": "hooks", "message": "hooks.SessionStart.0.hooks.0: Invalid command hook (command: Invalid input); entry ignored at runtime", "code": null}], "notes": []}]}}
+{"explicit_hook_path": true, "exit": 1, "report": {"success": false, "strict": true, "target": "/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-hook-path-validate-6dz5rboj/.claude-plugin/plugin.json", "manifest": {"file": "/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-hook-path-validate-6dz5rboj/.claude-plugin/plugin.json", "type": "plugin", "errors": [], "warnings": [], "notes": []}, "contents": [{"file": "/var/folders/v2/0qrppb_n6t71279q4dqv12mjc82z2t/T/adhd-unslop-hook-path-validate-6dz5rboj/hooks/hooks.json", "type": "hooks", "errors": [], "warnings": [{"path": "hooks", "message": "hooks.SessionStart.0.hooks.0: Invalid command hook (command: Invalid input); entry ignored at runtime", "code": null}], "notes": []}]}}
+
+web search: 
+web search: '.codex-plugin/plugin.json'
+codex
+Claude Code 2.1.270 accepts `additionalContextLimit: 12000` in hook validation, including with `--strict`. The remaining deployment issue is wording: Codex trusts a specific hook definition, so a changed definition needs review again. I’m also checking the test expectations, which still require a next action after completed work and a five-item cap.
+codex
+A file-backed state store is not required for v1. The blockers are contradictory instructions, switch semantics, upgrade staging, and test expectations.
+
+References below are to [design/PLAN.md](/Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop/design/PLAN.md).
+
+1. **Question 1: The approval plan is a direct reply, with one distinction.**
+
+   “Requested deliverables wherever they are displayed” at lines 96–98 also describes a requested execution plan. Add:
+
+   > “The agent’s proposed next steps, presented for approval before acting, are a direct reply. A plan document supplied as the requested work product is other writing, even when awaiting approval.”
+
+   The protected-text rule also freezes too much. Lines 113–115 say:
+
+   > “Protected text is preserved by both skills and never rewritten”
+
+   Replace with:
+
+   > “Style edits must preserve syntax, identifiers, paths, URLs, schemas, exact-match data, and verbatim quotations. The requested task may change them. Required output structure is protected; editable prose within that structure still follows these rules.”
+
+   Otherwise, “rename this identifier” conflicts with “never rewritten,” and a required JSON response could exempt every prose value.
+
+2. **Question 2: Row 1 is too restrictive, not too permissive.**
+
+   `Cause: X. Fix: Y.` follows ADHD’s example. But line 126 says:
+
+   > “Everything else is a whole sentence.”
+
+   That excludes ADHD’s next-action fragments and can force headings or labels into sentences. Replace the reply cell with:
+
+   > “Allow functional fragments modeled by ADHD, including next-action, progress, completion, and error lines. Otherwise apply unslop’s sentence rules. Preserve required headings, labels, and non-prose structure.”
+
+   Row 3 also drops ADHD’s two-minute requirement and makes its question whitelist exhaustive. Replace:
+
+   > “Ask a question only where ADHD requires one”
+
+   With:
+
+   > “When work remains, give one concrete action the reader can complete in under two minutes, or a necessary question under ADHD’s rules, task exceptions, or current user/runtime instructions. Do not seek authorization already given.”
+
+3. **Question 3: Accept model-tracked state for v1, but fix its semantics.**
+
+   Lines 145–146 say:
+
+   > “unslop stays on”  
+   > “ADHD part stays on”
+
+   These are not independent switches. After disabling ADHD, disabling unslop would enable ADHD again. Replace them with:
+
+   > “‘stop adhd mode’ disables ADHD and leaves unslop’s current state unchanged.”  
+   > “‘stop unslop’ disables unslop and leaves ADHD’s current state unchanged.”
+
+   The banner’s historical condition is also wrong:
+
+   > “If the reader turned a part off earlier in this session … keep it off.”
+
+   This overrides a later explicit reactivation. Replace with:
+
+   > “Restore the latest known state of each part in this session. Explicit invocation enables both; stop commands change the specified state. Reloading these instructions does not change known state. If no state is available, initialize both active.”
+
+   Replace lines 156–159 with:
+
+   > “Mode state lives in conversation context, not durable storage. Compaction or resume can lose it. Reinjection restores instructions, not missing state, and may therefore restore the active defaults. README documents that stop commands may need repeating.”
+
+   That is an honest v1 limitation. Upstream precedent alone does not establish reliability.
+
+   Also replace:
+
+   > “Delete <flag path> to turn always-on off for good.”
+
+   With:
+
+   > “Remove every existing opt-in flag to stop future injections. Use ‘normal mode’ to disable both parts in the current session.”
+
+   Either flag enables both runtimes, so removing only one may change nothing.
+
+4. **Question 4: The Codex key and value are valid. Claude validation does not currently reject it.**
+
+   Put `additionalContextLimit: 12000` on the command handler, beside `type` and `command`. It sets a threshold, not a fixed allocation. Measure the complete banner-plus-body output. [Codex hook documentation](https://learn.chatgpt.com/docs/hooks)
+
+   I tested temporary fixtures with Claude Code **2.1.270**. Hook validation accepted this property, including with `--strict`. An invalid-command control was rejected under `--strict`.
+
+   Replace lines 249–252:
+
+   > “Claude Code ignores unknown hook keys (to be verified …)”
+
+   With:
+
+   > “Set additionalContextLimit to 12000 on the command handler. Claude Code 2.1.270 accepts this field in validation. Validate the generated plugin with --strict and check complete payload delivery in Codex.”
+
+   Correct line 243:
+
+   > “review and trust plugin hooks once”
+
+   To:
+
+   > “review and trust the current hook definition; changed definitions require review again.”
+
+   Codex records trust against the definition’s hash. [Hook trust documentation](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+
+   The `.codex-plugin/plugin.json` layout remains supported. I found no demonstrated manifest-schema blocker in the proposed layout; these checks were not a Codex installation test. [Plugin compatibility documentation](https://developers.openai.com/plugins/build/plugins)
+
+   Lines 140–141 overstate equivalence between invocation controls. Replace:
+
+   > “Neither runtime lets the model invoke it on its own”
+
+   With:
+
+   > “Claude blocks model-initiated Skill calls. Codex disables implicit skill selection. The AGENTS.md fallback explicitly instructs the model to read and follow the complete installed SKILL.md.”
+
+5. **Question 5: Warn about uncited new rules. Fail for broken dependencies or references.**
+
+   The overlay should cite conflicts, not enumerate every upstream rule. A new compatible rule needs no overlay citation. Conversely, changed wording under an existing number can introduce a conflict without adding a heading.
+
+   Replace line 283’s review comment:
+
+   > “update overlay citations if a rule moved”
+
+   With:
+
+   > “Review every upstream change for applicability, conflicts, activation, and dependencies. Warn about new uncited rules. Fail for unresolved cited rules or unavailable runtime dependencies.”
+
+   The `--bump` description contradicts itself:
+
+   > “updates commit and sha256 … then runs the build and tests”  
+   > “If tests fail … does not amend the pin.”
+
+   Replace lines 286–289 with:
+
+   > “Fetch candidate sources and licenses into staging. Record separate hashes for SKILL.md and LICENSE. Build and test against staged pins. Promote sources, pins, and generated output together only after checks pass. On failure, retain staging for inspection and leave canonical files unchanged.”
+
+**Additional blocking edits**
+
+- **Disabled parts still apply under the precedence section.** Lines 81–82 say:
+
+  > “All rules from both skills apply to every passage”
+
+  Replace with:
+
+  > “Apply rules only from active parts, subject to their conditions and exceptions. When both parts apply and conflict, ADHD wins for direct replies and unslop wins otherwise. These scope, lifecycle, and precedence instructions govern conflicting statements in the embedded bodies.”
+
+  Change line 122:
+
+  > “The model applies this table instead of deriving the outcome.”
+
+  To:
+
+  > “The table illustrates outcomes when both parts are active and applicable. It does not override upstream exceptions. Resolve unlisted interactions with the precedence rule.”
+
+  Change line 202 similarly from “both upstream checklists” to “the checks and processes of active parts.”
+
+- **Behavioral expectations contradict the table.** Lines 331–333 require no document estimate or next-action line, then require a chat next action after the write. Replace with:
+
+  > “The document contains no unrelated session bookkeeping. Task-relevant instructions and estimates are allowed. The reply reports completion and includes a next action only if work remains.”
+
+  Replace line 336:
+
+  > “capped at five with the rest offered”
+
+  With:
+
+  > “ranked and grouped where useful; no relevant findings omitted when completeness matters.”
+
+  In the switch test, assert the actual state sequence: both on, ADHD off, both off, both off. Add reactivation followed by compaction to catch the banner’s historical-off bug.
+
+- **Mechanical checks need exclusions.** Test 4 rejects the precedence section’s own quoted `delve` example. Test 12 could reject provenance paths and illustrative paths such as `auth.ts`.
+
+  Replace those checks with:
+
+  > “Lint authored overlay prose, excluding marked literal examples and provenance. Validate actual runtime dependencies and resource links separately from illustrative paths.”
+
+I accept the smaller behavioral suite. Add one Codex hook-loading check that verifies the complete payload reaches context. This does not require repeating the writing suite for every installation route.
+
+## Optional
+
+- Line 166 still says “three invocations.” Replace with “multiple documents and additional loading steps.” Three user invocations are not inherent to that architecture.
+- Test 10 should require matching versions in both plugin manifests and any supported marketplace plugin-version fields. Requiring `VERSION` somewhere in every marketplace file proves little.
+- Document the qualified Claude command `/adhd-unslop:adhd-unslop`. The bare alias works unless another command occupies it. [Claude command naming](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name)
+
+## Verdict
+
+REVISE
+
+1. Make precedence and final checks conditional on active parts; keep the table subordinate to exceptions.
+2. Clarify approval plans and protected text; correct rows 1 and 3.
+3. Preserve independent switch states and the latest activation choice; document state loss accurately.
+4. Correct hook trust, invocation, payload-validation, and flag-removal wording.
+5. Make `--bump` staging and pin promotion consistent.
+6. Align tests with the rules, add literal-text exclusions, and verify Codex hook delivery.
+tokens used
+172,554
+A file-backed state store is not required for v1. The blockers are contradictory instructions, switch semantics, upgrade staging, and test expectations.
+
+References below are to [design/PLAN.md](/Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop/design/PLAN.md).
+
+1. **Question 1: The approval plan is a direct reply, with one distinction.**
+
+   “Requested deliverables wherever they are displayed” at lines 96–98 also describes a requested execution plan. Add:
+
+   > “The agent’s proposed next steps, presented for approval before acting, are a direct reply. A plan document supplied as the requested work product is other writing, even when awaiting approval.”
+
+   The protected-text rule also freezes too much. Lines 113–115 say:
+
+   > “Protected text is preserved by both skills and never rewritten”
+
+   Replace with:
+
+   > “Style edits must preserve syntax, identifiers, paths, URLs, schemas, exact-match data, and verbatim quotations. The requested task may change them. Required output structure is protected; editable prose within that structure still follows these rules.”
+
+   Otherwise, “rename this identifier” conflicts with “never rewritten,” and a required JSON response could exempt every prose value.
+
+2. **Question 2: Row 1 is too restrictive, not too permissive.**
+
+   `Cause: X. Fix: Y.` follows ADHD’s example. But line 126 says:
+
+   > “Everything else is a whole sentence.”
+
+   That excludes ADHD’s next-action fragments and can force headings or labels into sentences. Replace the reply cell with:
+
+   > “Allow functional fragments modeled by ADHD, including next-action, progress, completion, and error lines. Otherwise apply unslop’s sentence rules. Preserve required headings, labels, and non-prose structure.”
+
+   Row 3 also drops ADHD’s two-minute requirement and makes its question whitelist exhaustive. Replace:
+
+   > “Ask a question only where ADHD requires one”
+
+   With:
+
+   > “When work remains, give one concrete action the reader can complete in under two minutes, or a necessary question under ADHD’s rules, task exceptions, or current user/runtime instructions. Do not seek authorization already given.”
+
+3. **Question 3: Accept model-tracked state for v1, but fix its semantics.**
+
+   Lines 145–146 say:
+
+   > “unslop stays on”  
+   > “ADHD part stays on”
+
+   These are not independent switches. After disabling ADHD, disabling unslop would enable ADHD again. Replace them with:
+
+   > “‘stop adhd mode’ disables ADHD and leaves unslop’s current state unchanged.”  
+   > “‘stop unslop’ disables unslop and leaves ADHD’s current state unchanged.”
+
+   The banner’s historical condition is also wrong:
+
+   > “If the reader turned a part off earlier in this session … keep it off.”
+
+   This overrides a later explicit reactivation. Replace with:
+
+   > “Restore the latest known state of each part in this session. Explicit invocation enables both; stop commands change the specified state. Reloading these instructions does not change known state. If no state is available, initialize both active.”
+
+   Replace lines 156–159 with:
+
+   > “Mode state lives in conversation context, not durable storage. Compaction or resume can lose it. Reinjection restores instructions, not missing state, and may therefore restore the active defaults. README documents that stop commands may need repeating.”
+
+   That is an honest v1 limitation. Upstream precedent alone does not establish reliability.
+
+   Also replace:
+
+   > “Delete <flag path> to turn always-on off for good.”
+
+   With:
+
+   > “Remove every existing opt-in flag to stop future injections. Use ‘normal mode’ to disable both parts in the current session.”
+
+   Either flag enables both runtimes, so removing only one may change nothing.
+
+4. **Question 4: The Codex key and value are valid. Claude validation does not currently reject it.**
+
+   Put `additionalContextLimit: 12000` on the command handler, beside `type` and `command`. It sets a threshold, not a fixed allocation. Measure the complete banner-plus-body output. [Codex hook documentation](https://learn.chatgpt.com/docs/hooks)
+
+   I tested temporary fixtures with Claude Code **2.1.270**. Hook validation accepted this property, including with `--strict`. An invalid-command control was rejected under `--strict`.
+
+   Replace lines 249–252:
+
+   > “Claude Code ignores unknown hook keys (to be verified …)”
+
+   With:
+
+   > “Set additionalContextLimit to 12000 on the command handler. Claude Code 2.1.270 accepts this field in validation. Validate the generated plugin with --strict and check complete payload delivery in Codex.”
+
+   Correct line 243:
+
+   > “review and trust plugin hooks once”
+
+   To:
+
+   > “review and trust the current hook definition; changed definitions require review again.”
+
+   Codex records trust against the definition’s hash. [Hook trust documentation](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+
+   The `.codex-plugin/plugin.json` layout remains supported. I found no demonstrated manifest-schema blocker in the proposed layout; these checks were not a Codex installation test. [Plugin compatibility documentation](https://developers.openai.com/plugins/build/plugins)
+
+   Lines 140–141 overstate equivalence between invocation controls. Replace:
+
+   > “Neither runtime lets the model invoke it on its own”
+
+   With:
+
+   > “Claude blocks model-initiated Skill calls. Codex disables implicit skill selection. The AGENTS.md fallback explicitly instructs the model to read and follow the complete installed SKILL.md.”
+
+5. **Question 5: Warn about uncited new rules. Fail for broken dependencies or references.**
+
+   The overlay should cite conflicts, not enumerate every upstream rule. A new compatible rule needs no overlay citation. Conversely, changed wording under an existing number can introduce a conflict without adding a heading.
+
+   Replace line 283’s review comment:
+
+   > “update overlay citations if a rule moved”
+
+   With:
+
+   > “Review every upstream change for applicability, conflicts, activation, and dependencies. Warn about new uncited rules. Fail for unresolved cited rules or unavailable runtime dependencies.”
+
+   The `--bump` description contradicts itself:
+
+   > “updates commit and sha256 … then runs the build and tests”  
+   > “If tests fail … does not amend the pin.”
+
+   Replace lines 286–289 with:
+
+   > “Fetch candidate sources and licenses into staging. Record separate hashes for SKILL.md and LICENSE. Build and test against staged pins. Promote sources, pins, and generated output together only after checks pass. On failure, retain staging for inspection and leave canonical files unchanged.”
+
+**Additional blocking edits**
+
+- **Disabled parts still apply under the precedence section.** Lines 81–82 say:
+
+  > “All rules from both skills apply to every passage”
+
+  Replace with:
+
+  > “Apply rules only from active parts, subject to their conditions and exceptions. When both parts apply and conflict, ADHD wins for direct replies and unslop wins otherwise. These scope, lifecycle, and precedence instructions govern conflicting statements in the embedded bodies.”
+
+  Change line 122:
+
+  > “The model applies this table instead of deriving the outcome.”
+
+  To:
+
+  > “The table illustrates outcomes when both parts are active and applicable. It does not override upstream exceptions. Resolve unlisted interactions with the precedence rule.”
+
+  Change line 202 similarly from “both upstream checklists” to “the checks and processes of active parts.”
+
+- **Behavioral expectations contradict the table.** Lines 331–333 require no document estimate or next-action line, then require a chat next action after the write. Replace with:
+
+  > “The document contains no unrelated session bookkeeping. Task-relevant instructions and estimates are allowed. The reply reports completion and includes a next action only if work remains.”
+
+  Replace line 336:
+
+  > “capped at five with the rest offered”
+
+  With:
+
+  > “ranked and grouped where useful; no relevant findings omitted when completeness matters.”
+
+  In the switch test, assert the actual state sequence: both on, ADHD off, both off, both off. Add reactivation followed by compaction to catch the banner’s historical-off bug.
+
+- **Mechanical checks need exclusions.** Test 4 rejects the precedence section’s own quoted `delve` example. Test 12 could reject provenance paths and illustrative paths such as `auth.ts`.
+
+  Replace those checks with:
+
+  > “Lint authored overlay prose, excluding marked literal examples and provenance. Validate actual runtime dependencies and resource links separately from illustrative paths.”
+
+I accept the smaller behavioral suite. Add one Codex hook-loading check that verifies the complete payload reaches context. This does not require repeating the writing suite for every installation route.
+
+## Optional
+
+- Line 166 still says “three invocations.” Replace with “multiple documents and additional loading steps.” Three user invocations are not inherent to that architecture.
+- Test 10 should require matching versions in both plugin manifests and any supported marketplace plugin-version fields. Requiring `VERSION` somewhere in every marketplace file proves little.
+- Document the qualified Claude command `/adhd-unslop:adhd-unslop`. The bare alias works unless another command occupies it. [Claude command naming](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name)
+
+## Verdict
+
+REVISE
+
+1. Make precedence and final checks conditional on active parts; keep the table subordinate to exceptions.
+2. Clarify approval plans and protected text; correct rows 1 and 3.
+3. Preserve independent switch states and the latest activation choice; document state loss accurately.
+4. Correct hook trust, invocation, payload-validation, and flag-removal wording.
+5. Make `--bump` staging and pin promotion consistent.
+6. Align tests with the rules, add literal-text exclusions, and verify Codex hook delivery.
+exit=0

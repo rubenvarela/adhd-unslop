@@ -1,0 +1,768 @@
+OpenAI Codex v0.154.0
+--------
+workdir: /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+model: gpt-6-astra
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: xhigh
+reasoning summaries: none
+session id: 01a09847-1ed7-7683-99ae-c41035e365d6
+--------
+user
+Round 3. `design/PLAN.md` is now v3. Read it in full again.
+
+Accepted from round 2, all six blocking items and the optional items: precedence conditional on active parts, table subordinate to exceptions, approval-plan and protected-text wording, rows 1 and 3 corrected, independent switch semantics with latest-known-state rule, honest state-loss limitation, hook trust and invocation wording, flag-removal wording, staged --bump with separate hashes, lint exclusions, dependency check separated from illustrative paths, Codex delivery check, version test tightened, qualified command name documented.
+
+New in v3, not from you: Claude Code caps each hook's stdout at 10,000 characters and spills larger output to a file with a preview (code.claude.com/docs/en/hooks, "Hook output strings, including additionalContext, systemMessage, and plain stdout, are capped at 10,000 characters"). The composite is about 18,000 characters. The plan now delivers it through three parallel command handlers under one SessionStart matcher, each printing one labelled chunk, each under 9,000 characters, each with its own additionalContextLimit for Codex. Read the "Hook (both runtimes)" section carefully.
+
+Your job:
+1. Attack the three-chunk hook design. Failure modes, ordering, duplication on resume/compact, what happens on Codex when only some handlers are trusted, whether Claude Code's 10,000 cap is per handler.
+2. Answer the three open questions.
+3. Re-read the precedence section, surface list, outcome table, and lifecycle as the model. Any remaining line that would make the model guess or that contradicts an upstream rule without saying so.
+4. `## Verdict` with exactly `CONSENSUS` or `REVISE` plus numbered blocking changes. Non-blocking in `## Optional`.
+
+Terse. Quote the line, give the replacement. No em dashes.
+
+hook: SessionStart
+hook: SessionStart Completed
+codex
+I’ll read v3 in full and check whether the three-handler hook delivers a complete ruleset when execution order, trust, or failures differ.
+exec
+/bin/zsh -lc 'nl -ba design/PLAN.md' in /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+ succeeded in 0ms:
+     1	# Plan: run i-have-adhd and unslop together with defined tie-breaking
+     2	
+     3	Status: v3. Revised after Codex rounds 1 and 2 (design/round-*-codex.md).
+     4	
+     5	## Goal
+     6	
+     7	Ship one installable plugin (Claude Code and Codex) that applies both the
+     8	`i-have-adhd` skill and pstack's `unslop` skill, keeps every rule, example,
+     9	exception, process, and checklist of both, resolves their conflicts with one
+    10	precedence rule, and stays easy to upgrade when either upstream changes.
+    11	
+    12	## Fixed requirements (user's decision)
+    13	
+    14	1. Keep all features of both skills.
+    15	2. Tie-break: text that is a direct reply to the user follows i-have-adhd on
+    16	   conflict; all other text follows unslop on conflict.
+    17	3. Installs and runs on Claude Code and Codex CLI using the mechanisms the two
+    18	   upstream repos already use.
+    19	4. Easy to upgrade when either upstream changes.
+    20	
+    21	## Upstreams
+    22	
+    23	| Upstream | Path in upstream repo | License |
+    24	| --- | --- | --- |
+    25	| ayghri/i-have-adhd | `skills/i-have-adhd/SKILL.md` | MIT (`LICENSE`) |
+    26	| michael-denyer/pstack-claude | `plugins/pstack/skills/unslop/SKILL.md` | MIT (`LICENSE`), original by Lauren Tan (cursor/plugins pstack) |
+    27	
+    28	The full clones at `i-have-adhd--repo/` and `pstack-claude--repo/` in this
+    29	scratch directory are reference material only. Nothing reads them at build or
+    30	run time.
+    31	
+    32	## Interactions between the two skills
+    33	
+    34	Candidate interactions, sorted into real conflicts (both rules apply to the
+    35	same span and cannot both be satisfied) and tensions (both can usually be
+    36	satisfied; the overlay says how). Each upstream's own exceptions constrain
+    37	its own rules first. Examples in either skill illustrate their rule; they do
+    38	not create blanket exemptions.
+    39	
+    40	Real conflicts:
+    41	
+    42	1. Fragments. ADHD "Good" examples model label-and-fragment shape ("Step 3 of
+    43	   5 done: schema updated. Next: backfill."). Unslop rule 33 (over-compression)
+    44	   and rule 32 (rhetorical fragments) reject that shape. Unslop rule 14 rejects
+    45	   the connector colon. (Rule 16 targets a bold label that restates the line;
+    46	   it is not in play for a plain "Next:" label.)
+    47	2. Parentheses as separators. ADHD rule 2 example writes "(lines 42 to 58)".
+    48	   Unslop rule 13 bans parentheses as dash substitutes.
+    49	3. Closing question. ADHD rule 4 ends with "Want me to handle that next?" and
+    50	   rule 5 with "Run the script?". Unslop rule 20 removes offer-style closers.
+    51	   ADHD rule 10 also bans closers, and ADHD exception 6 says do authorized
+    52	   work instead of asking. ADHD's ambiguity, destructive-action, debug-spiral,
+    53	   and tangent rules require a question in their stated cases.
+    54	
+    55	Tensions:
+    56	
+    57	4. Estimates. ADHD rule 6 asks for a concrete ballpark when duration matters.
+    58	   Unslop rule 30 replaces vague adverbs with the measured number. Both can be
+    59	   satisfied: give a ballpark, label it as one, name the assumption, never
+    60	   present it as a measurement.
+    61	5. State restatement. ADHD rule 5 requires restating progress each turn and
+    62	   allows a task checklist to do it. Unslop rule 27 cuts sentences that carry
+    63	   no project-specific information. A concrete status line ("Step 3 of 5
+    64	   done. The schema has the new column.") satisfies both.
+    65	6. List length. ADHD rule 9 aims for five per group and forbids omitting
+    66	   items when completeness matters. Unslop rule 10 rejects forced triples.
+    67	   Both can be satisfied.
+    68	7. Audience and tone. Unslop's process says "match intended tone". ADHD's
+    69	   shape is for the chat reader. Imposing "Next: run X" structure on a README
+    70	   for a different audience breaks unslop's tone rule. Resolved by surface.
+    71	8. Tool announcements and harness rules. ADHD rule 10 and pre-send check 1
+    72	   delete openers; ADHD exception 6 keeps a harness-required announcement.
+    73	   The overlay repeats: the runtime's system prompt outranks both skills.
+    74	
+    75	Lifecycle gaps (not rule conflicts): no tiebreaker stated anywhere; ADHD has
+    76	"stop adhd mode" but unslop has no off switch; "normal mode" is ambiguous
+    77	about unslop.
+    78	
+    79	## Precedence rule
+    80	
+    81	Apply rules only from active parts, subject to each part's own conditions
+    82	and exceptions. A conflict exists when satisfying one applicable
+    83	instruction would violate another. When both parts apply and conflict, ADHD
+    84	wins for a direct reply and unslop wins for other writing. Compatible
+    85	instructions stay in force everywhere. Example: ADHD says nothing about em
+    86	dashes or the word "delve", so unslop rules 13 and 7 apply to replies too.
+    87	These scope, lifecycle, and precedence instructions govern any conflicting
+    88	statement inside the embedded upstream bodies.
+    89	
+    90	### Surfaces, classified per passage
+    91	
+    92	Direct reply. Text that talks to the current user about their request in
+    93	this conversation. Answers, progress reports, tool-call announcements the
+    94	runtime requires, clarifying questions, status restatements, task or plan
+    95	tool entries the user reads, a command or snippet offered as the user's next
+    96	step, and the agent's own proposed next steps shown for approval before
+    97	acting.
+    98	
+    99	Other writing. Everything else the model authors or edits. Requested
+   100	deliverables wherever they are displayed (a doc drafted inline in the chat is
+   101	still a deliverable), files written or edited, code comments and
+   102	natural-language strings where the task permits editing them, commit
+   103	messages, PR and issue text, messages for third parties, application copy,
+   104	instructions to subagents, reports from one agent to another, compaction
+   105	summaries, and any text the user handed over to be rewritten, edited, or
+   106	translated. Text supplied for rewriting is editable; quotation marks around
+   107	it do not exempt it. A plan document that is itself the requested work
+   108	product is other writing, even while it awaits approval.
+   109	
+   110	Rules for the boundary:
+   111	
+   112	- Classify each passage on its own. One turn can contain both surfaces. The
+   113	  sentence that says "I wrote docs/links.md" is a direct reply; the file body
+   114	  is other writing.
+   115	- Fences, transport, and persistence do not decide. A fenced command the user
+   116	  will run next is a direct reply. An unfenced README draft is other writing.
+   117	- Style edits preserve syntax, identifiers, paths, URLs, schemas,
+   118	  exact-match data, and verbatim quotations. The requested task may still
+   119	  change them ("rename this identifier"). Required output structure is
+   120	  protected; editable prose inside that structure still follows these rules.
+   121	- Workflow rules govern conduct under their own conditions. Do not insert
+   122	  session bookkeeping (status lines, next-action lines, estimates) into a
+   123	  deliverable because both skills are active.
+   124	
+   125	### Outcome table
+   126	
+   127	The table shows the outcome when both parts are active and applicable. It
+   128	does not override either upstream's exceptions. Resolve an unlisted
+   129	interaction with the precedence rule above.
+   130	
+   131	| Interaction | Direct reply (ADHD wins) | Other writing (unslop wins) |
+   132	| --- | --- | --- |
+   133	| 1 Fragments | Functional fragments that ADHD models are allowed: next-action, progress, completion, and error lines ("Step 3 of 5 done: schema updated." "Cause: missing header. Fix: add it." "Next: run `npm test`."). Otherwise apply unslop's sentence rules. Headings, labels, and non-prose structure stay as they are. | Whole sentences with articles and verbs. No connector colon. |
+   134	| 2 Parentheses | Allowed for a locator only ("(lines 42 to 58)", "(see `auth.ts:42`)"). Not for an aside. | Rewrite as a sentence or a comma clause. |
+   135	| 3 Closing question | When work remains, end with one concrete action the reader can finish in under two minutes ("Run `npm test` and paste the first failing line."), or one necessary question under ADHD's rules (separate tangent, real ambiguity, destructive action, debug spiral), the task's own exceptions, or current user or runtime instructions. Do not seek authorization already given. | Remove stock closers. Keep a closing request or action the deliverable itself requires, such as the decision an email asks for. |
+   136	| 4 Estimates | Give a ballpark when the reader must plan or start. Say whose time, name the main assumption, use a range when unsure. If you cannot estimate responsibly, say what to check first. | Keep an estimate the document needs, with its assumption. Never present a ballpark as a measurement. |
+   137	| 5 State | Restate progress each turn of multi-step work through the checklist or one concrete line. Do not narrate the whole plan again. | Include status only when it is the document's content. No session bookkeeping. |
+   138	| 6 Lists | Aim for five per group. Show every item when completeness matters. | Natural count. Completeness wins. |
+   139	| 7 Tone | ADHD shape for the chat reader. | Match the deliverable's audience and intended tone. |
+   140	| 8 Announcements | Delete openers except an announcement the runtime requires. | Not applicable. |
+   141	
+   142	## Lifecycle
+   143	
+   144	Activation. The skill is active when the user invokes it (`/adhd-unslop` in
+   145	Claude Code, `$adhd-unslop` in Codex) or when the always-on hook injects it
+   146	at session `startup` or `clear`. Both parts start active. Claude Code blocks
+   147	model-initiated Skill calls (`disable-model-invocation: true`). Codex
+   148	disables implicit skill selection (`allow_implicit_invocation: false`). The
+   149	Codex AGENTS.md fallback explicitly tells the model to read and follow the
+   150	complete installed SKILL.md.
+   151	
+   152	Two independent switches. Each holds its own state for the session:
+   153	
+   154	- "stop adhd mode" disables ADHD and leaves unslop's current state unchanged.
+   155	- "stop unslop" disables unslop and leaves ADHD's current state unchanged.
+   156	- "normal mode" disables both.
+   157	- Invoking the skill again enables both.
+   158	- Confirm each change in one line naming what is now active.
+   159	
+   160	State rule, in the skill and in the banner: restore the latest known state
+   161	of each part in this session. Explicit invocation enables both. Stop
+   162	commands change only the named part. Reloading these instructions does not
+   163	change known state. If no state is known, both are active. Quoted or
+   164	discussed control phrases are not commands.
+   165	
+   166	Persistence. Active parts stay active for the rest of the session, across
+   167	topic changes. The hook also fires on `resume` and `compact` to restore the
+   168	instructions after context loss.
+   169	
+   170	Known limitation, documented in README. Mode state lives in conversation
+   171	context, not durable storage. Compaction or resume can lose it. Reinjection
+   172	restores instructions, not lost state, so it may restore the active
+   173	defaults and a stop command may need repeating. A file-backed state store
+   174	is not built in v1.
+   175	
+   176	## Architecture: vendored sources plus a generated composite skill
+   177	
+   178	Chosen over a hand-merged single skill (every upstream change becomes a hand
+   179	merge, and the earlier `unslop-final` attempt rewrote ADHD's examples, which
+   180	loses the ADHD reply shape) and over three separately loaded skills
+   181	(multiple documents for the model to juggle, additional loading steps, same
+   182	token cost).
+   183	
+   184	### Composite layout
+   185	
+   186	`skills/adhd-unslop/SKILL.md` is generated by `tools/build.mjs`:
+   187	
+   188	```
+   189	---                                    frontmatter (ours)
+   190	name: adhd-unslop
+   191	description: ...
+   192	disable-model-invocation: true
+   193	license: MIT
+   194	---
+   195	# adhd-unslop                          overlay/00-intro.md
+   196	## Scope, surfaces, and precedence     overlay/10-precedence.md (this plan's section)
+   197	## Lifecycle                           overlay/20-lifecycle.md
+   198	<!-- BEGIN upstream i-have-adhd skills/i-have-adhd/SKILL.md @<commit> -->
+   199	<upstream body byte-for-byte, frontmatter removed, headings untouched>
+   200	<!-- END upstream i-have-adhd -->
+   201	<!-- BEGIN upstream pstack-claude plugins/pstack/skills/unslop/SKILL.md @<commit> -->
+   202	<upstream body byte-for-byte, frontmatter removed>
+   203	<!-- END upstream unslop -->
+   204	## Final check                         overlay/90-final-check.md
+   205	```
+   206	
+   207	Rules for the composite:
+   208	
+   209	- Upstream bodies are copied exactly after removing the leading YAML
+   210	  frontmatter. Headings, examples, fences, and rule numbers are untouched.
+   211	  Tests assert byte equality between the marker pairs and the stripped
+   212	  upstream files.
+   213	- The frontmatter description of unslop ("Must always apply") is carried into
+   214	  the overlay as an explicit mandate: unslop applies to every prose surface
+   215	  while active.
+   216	- Citations: "ADHD rule N", "ADHD exception N", "ADHD check N", "unslop rule
+   217	  N", "unslop process N".
+   218	- Final check (overlay) runs the checks and processes of the active parts,
+   219	  in order, under the precedence rule. It must not undo a winning ADHD
+   220	  instruction on a direct reply, and must not replace either upstream
+   221	  process.
+   222	- Both upstream LICENSE files and a NOTICE with provenance live inside the
+   223	  skill directory (`skills/adhd-unslop/LICENSES/`) so a skills-only install
+   224	  carries attribution. Root `LICENSE` and `NOTICE.md` repeat it.
+   225	
+   226	### Repo layout
+   227	
+   228	Mirrors ayghri/i-have-adhd, which already installs on both runtimes.
+   229	
+   230	```
+   231	.
+   232	├── .claude-plugin/plugin.json            Claude Code manifest (version stamped from VERSION)
+   233	├── .claude-plugin/marketplace.json       lets `claude plugin marketplace add <owner>/<repo>` work
+   234	├── .codex-plugin/plugin.json             Codex manifest, "skills": "./skills/"
+   235	├── .agents/plugins/marketplace.json      Codex marketplace
+   236	├── hooks/hooks.json                      SessionStart, matcher startup|resume|clear|compact
+   237	├── hooks/always-on.mjs                   reads flag, prints banner + composite body
+   238	├── skills/adhd-unslop/SKILL.md           GENERATED
+   239	├── skills/adhd-unslop/agents/openai.yaml Codex: allow_implicit_invocation false
+   240	├── skills/adhd-unslop/LICENSES/          upstream LICENSE files + NOTICE
+   241	├── upstream/i-have-adhd/SKILL.md         pristine, synced
+   242	├── upstream/i-have-adhd/LICENSE
+   243	├── upstream/unslop/SKILL.md              pristine, synced
+   244	├── upstream/unslop/LICENSE
+   245	├── overlay/*.md                          hand-written sections
+   246	├── tools/upstream.json                   pins: repo, path, commit, sha256, license path
+   247	├── tools/sync.mjs                        fetch at pin, verify hash, --bump to advance
+   248	├── tools/build.mjs                       compose SKILL.md, stamp versions, copy licenses
+   249	├── tests/*.test.mjs                      node:test, no dependencies
+   250	├── VERSION
+   251	├── README.md
+   252	├── LICENSE, NOTICE.md
+   253	└── design/                               this plan and the Codex rounds
+   254	```
+   255	
+   256	### Hook (both runtimes)
+   257	
+   258	Codex supports plugin `hooks/hooks.json` with `SessionStart` sources
+   259	`startup|resume|clear|compact`, sets `PLUGIN_ROOT` and `CLAUDE_PLUGIN_ROOT`,
+   260	and requires the user to review and trust the current hook definition in
+   261	`/hooks`; a changed definition needs review again because trust is recorded
+   262	against the definition's hash (developers.openai.com/codex/hooks). The
+   263	upstream i-have-adhd launcher already reads both env vars, so one
+   264	`hooks.json` serves both runtimes.
+   265	
+   266	Output caps. Claude Code caps each hook's stdout at 10,000 characters and
+   267	replaces larger output with a file path and preview
+   268	(code.claude.com/docs/en/hooks). Codex caps each hook at about 2,500 tokens
+   269	by default and raises it per handler with `additionalContextLimit`. The
+   270	composite is about 18,000 characters, so a single hook cannot deliver it on
+   271	Claude Code. Both runtimes deliver every matching hook's output separately
+   272	and all matching hooks run in parallel.
+   273	
+   274	Design: three command handlers under one `SessionStart` matcher group. Each
+   275	runs the same launcher with `ADHD_UNSLOP_PART` set to `1`, `2`, or `3`:
+   276	
+   277	1. Banner plus overlay (scope, precedence, lifecycle, final check).
+   278	2. Upstream i-have-adhd body.
+   279	3. Upstream unslop body.
+   280	
+   281	Each chunk starts with a self-identifying line ("adhd-unslop part N of 3:
+   282	<title>") because delivery order is not guaranteed. Each handler carries
+   283	`additionalContextLimit: 5000` for Codex. Claude Code 2.1.270 accepts that
+   284	field in validation, including with `--strict` (Codex verified this in round
+   285	2 with fixtures). A test asserts each chunk is under 9,000 characters and
+   286	under 4,000 estimated tokens. The launcher reads the chunks from the
+   287	generated composite by its provenance markers, so the hook and the skill
+   288	file cannot drift.
+   289	
+   290	Flag file. The hook prints only when an opt-in flag exists:
+   291	`$CLAUDE_CONFIG_DIR/.adhd-unslop-always` (default `~/.claude`) or
+   292	`$CODEX_HOME/.adhd-unslop-always` (default `~/.codex`). Either file enables
+   293	always-on in both runtimes. Any failure exits 0 and prints nothing.
+   294	
+   295	Banner text (part 1 only):
+   296	
+   297	```
+   298	ADHD-UNSLOP MODE ACTIVE (always-on). Three parts follow in separate
+   299	messages; read all three. Restore the latest known state of each part in
+   300	this session: "stop adhd mode", "stop unslop", and "normal mode" change
+   301	state, reloading these instructions does not. If no state is known, both
+   302	parts are active. To stop future injections remove every opt-in flag
+   303	(<paths>). Use "normal mode" to disable both parts in this session.
+   304	```
+   305	
+   306	Codex fallback without hooks: README gives a `~/.codex/AGENTS.md` snippet
+   307	that instructs the model to read and follow the complete installed
+   308	`SKILL.md` for `adhd-unslop` at the start of every session. The snippet
+   309	contains no rules of its own.
+   310	
+   311	Codex prompt stub (`.codex-plugin/prompts/adhd-unslop.md`) is an optional
+   312	slash shortcut. Not shipped in v1; README notes how to add one. Claude Code
+   313	users can also type the qualified `/adhd-unslop:adhd-unslop` if another
+   314	command occupies the bare name.
+   315	
+   316	### Upgrade flow
+   317	
+   318	```
+   319	node tools/sync.mjs --check                     # upstream/ matches pinned sha256
+   320	node tools/sync.mjs --bump i-have-adhd <commit> # fetch at commit, stage, print diff
+   321	node tools/build.mjs                            # regenerate composite, stamp versions
+   322	node --test tests/                              # invariants
+   323	git diff upstream/ skills/ overlay/             # review every change for applicability, conflicts, activation, dependencies
+   324	```
+   325	
+   326	`--bump` fetches SKILL.md and LICENSE from raw.githubusercontent.com at the
+   327	commit into a staging directory (`.sync-staging/<name>/`), records a
+   328	separate sha256 for each file, builds and tests against the staged pins,
+   329	and only then promotes sources, pins, and generated output together. On
+   330	failure it keeps staging for inspection and leaves canonical files
+   331	unchanged. It warns when the new body adds a rule number or heading the
+   332	overlay does not cite, and fails when the overlay cites a rule number that
+   333	no longer exists or when the new body references a runtime dependency
+   334	(`references/`, `scripts/`, `agents/`, or a relative link) that the
+   335	composite does not ship.
+   336	
+   337	## Tests (node:test, `node --test tests/`)
+   338	
+   339	1. Composite equals fresh `build.mjs` output.
+   340	2. Each upstream body appears byte-for-byte between its markers; nothing
+   341	   else sits between the marker pairs.
+   342	3. `upstream/*/SKILL.md` and `LICENSE` match `upstream.json` sha256.
+   343	4. Authored overlay prose passes mechanical unslop checks: no em dash, no
+   344	   en dash used as a dash, no curly quotes, no "not just", no rule 7
+   345	   vocabulary, no title case headings, no decorative emoji. Lines inside
+   346	   fenced blocks, inline code, and provenance comments are excluded, so a
+   347	   quoted "delve" example does not fail the lint.
+   348	5. Precedence section names both surfaces and the outcome table has one row
+   349	   per interaction in a shared `tests/interactions.json`.
+   350	6. Overlay carries the unslop "always apply" mandate and all three switches.
+   351	7. Hook: silent without flag; with the Claude flag or the Codex flag, parts
+   352	   1 to 3 together reproduce the composite body exactly, part 1 carries the
+   353	   banner, every part carries its "part N of 3" line; strips frontmatter;
+   354	   exits 0 with empty stdout when SKILL.md is missing or the part number is
+   355	   invalid; works with `CLAUDE_PLUGIN_ROOT` and with `PLUGIN_ROOT`.
+   356	8. `hooks.json`: three handlers, one per part; matcher covers all four
+   357	   sources; each command references both root env vars and sets its part;
+   358	   each part is under 9,000 characters and under 4,000 estimated tokens;
+   359	   each handler's `additionalContextLimit` is at least 1.25 times that
+   360	   part's estimated tokens.
+   361	9. Frontmatter: `name` equals directory name, `disable-model-invocation:
+   362	   true`, description under 1024 chars. `openai.yaml` has
+   363	   `allow_implicit_invocation: false`.
+   364	10. Manifests: both plugin.json `version` fields and the Claude marketplace
+   365	    plugin `version` field equal `VERSION`.
+   366	11. `skills/adhd-unslop/LICENSES/` holds both upstream licenses and a NOTICE
+   367	    naming both repos and commits.
+   368	12. No runtime dependency in the composite points outside
+   369	    `skills/adhd-unslop/`: relative Markdown links and references to
+   370	    `references/`, `scripts/`, or `agents/` fail; illustrative paths such as
+   371	    `src/auth.ts` inside examples do not.
+   372	13. Codex delivery check (manual, recorded): with the flag set, start a
+   373	    Codex session with the plugin installed and hooks trusted, ask "print
+   374	    the last heading of each adhd-unslop part you received", and confirm all
+   375	    three parts arrived whole.
+   376	
+   377	## Behavioral test (manual, recorded in design/BEHAVIOR.md)
+   378	
+   379	Record Claude Code version, Codex version, and model for each run. Run on
+   380	Claude Code with the flag set and on Codex with `$adhd-unslop`.
+   381	
+   382	1. Interactive question. "What's the difference between a symlink and a hard
+   383	   link? I'm on macOS." Expect: answer first, no preamble, no closer, no em
+   384	   dash, no rule 7 words, fragments and locator parentheses tolerated.
+   385	2. Doc write. "Write `docs/links.md` explaining symlinks vs hard links for a
+   386	   junior dev." Expect file body: whole sentences, no connector colon, no
+   387	   unrelated session bookkeeping (task-relevant instructions and estimates
+   388	   are allowed), natural list lengths, sentence-case headings. Expect chat
+   389	   reply: ADHD shape, reports completion, includes a next action only if
+   390	   work remains.
+   391	3. Mixed turn. "Fix the typo in README.md line 3 and tell me what else looks
+   392	   off." Expect: the edit follows unslop; the reply follows ADHD; the "what
+   393	   else" findings are ranked and grouped where useful, and nothing relevant
+   394	   is omitted when completeness matters.
+   395	4. Long list. "List every HTTP status code in the 4xx range with one line
+   396	   each." Expect: complete list (ADHD rule 9 completeness clause), grouped,
+   397	   not truncated.
+   398	5. Switches. Assert the state sequence: both on; "stop adhd mode" gives
+   399	   ADHD off and unslop on; "stop unslop" gives both off; "normal mode" keeps
+   400	   both off; invoking the skill again gives both on. One-line confirmation
+   401	   after each command naming what is active.
+   402	6. Compaction. On Claude Code, after step 5 ends with both on, say "stop
+   403	   unslop", run `/compact`, and ask a question. Expect ADHD on and unslop
+   404	   off. If the state is lost, record it as the documented limitation, not a
+   405	   failure of the precedence rule.
+   406	
+   407	## Open questions for round 3
+   408	
+   409	1. Three parallel hook handlers deliver the skill in three messages in
+   410	   unspecified order. Is there a failure mode where the model treats part 2
+   411	   or 3 as unrelated context? The "part N of 3" line and the banner's "read
+   412	   all three" are the mitigation.
+   413	2. The launcher extracts chunks from the generated composite by provenance
+   414	   markers. Alternative: the build writes three chunk files next to
+   415	   SKILL.md and the launcher prints one file per part. Which is more robust?
+   416	3. Anything in v3 that still contradicts an upstream rule without saying so?
+
+web search: 
+web search: '10,000' in https://code.claude.com/docs/en/hooks
+codex
+Claude’s docs apply the 10,000-character cap to each returned context value, so splitting can address the size limit. The missing-part case is the main problem: if part 1 is skipped, parts 2 and 3 arrive without the precedence or lifecycle rules. The exact-reconstruction test also cannot pass as written, because part 1 moves the final check ahead of both upstream bodies.
+web search: 
+exec
+/bin/zsh -lc "python3 - <<'PY'
+from pathlib import Path
+import re
+plan=Path('design/PLAN.md').read_text()
+lines=plan.splitlines(keepends=True)
+for label,text in [('plan precedence and lifecycle, lines 79-174',''.join(lines[78:174])),('ADHD body',re.sub(r'"'^---'"\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n','',Path('i-have-adhd--repo/skills/i-have-adhd/SKILL.md').read_text(),count=1)),('unslop body',re.sub(r'"'^---'"\\r?\\n[\\s\\S]*?\\r?\\n---\\r?\\n','',Path('pstack-claude--repo/plugins/pstack/skills/unslop/SKILL.md').read_text(),count=1))]:
+    print(label, 'characters=',len(text), 'utf16_units=',len(text.encode('utf-16-le'))//2)
+PY" in /Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop
+ succeeded in 0ms:
+plan precedence and lifecycle, lines 79-174 characters= 6418 utf16_units= 6418
+ADHD body characters= 6787 utf16_units= 6787
+unslop body characters= 5976 utf16_units= 5976
+
+web search: 'SessionStart decision control' in https://code.claude.com/docs/en/hooks
+codex
+The delivery test can pass on incomplete output: a preview may include the last heading while omitting rules in the middle. Two wording issues remain too: “part” now means both a transport chunk and a skill mode, and row 1 exempts headings from style rules that should still apply.
+codex
+Three handlers can avoid the size limit. They do not make delivery complete or activation atomic.
+
+References are to [design/PLAN.md](/Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop/design/PLAN.md).
+
+1. **Question 1: Labels address ordering, but not missing instructions.**
+
+   Claude documents the 10,000-character limit per returned context value. Several hooks can each return a value below that limit. This supports splitting, but does not promise three distinct transcript messages. [Claude hook documentation](https://code.claude.com/docs/en/hooks#add-context-for-claude)
+
+   Replace lines 271–272:
+
+   > “Both runtimes deliver every matching hook's output separately and all matching hooks run in parallel.”
+
+   With:
+
+   > “Matching handlers run concurrently. Keep all three synchronous. Each successful handler contributes context subject to its own output limit. Do not depend on arrival order or transcript message boundaries.”
+
+   **The critical failure is part 1 missing.** Parts 2 and 3 then deliver upstream instructions without the precedence rules, switches, or instruction to read all three. Conversely, part 1 alone announces activation without delivering either skill.
+
+   Codex can skip untrusted hooks and disable individual hooks. One matcher group is not an all-or-nothing execution contract. Timeouts and process failures can also leave a subset. [Codex hook documentation](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+
+   Replace lines 281–282:
+
+   > “Each chunk starts with a self-identifying line … because delivery order is not guaranteed.”
+
+   With:
+
+   > “Every chunk carries a common control header, the composite hash, its index and total count, and an end marker. The header identifies the payload as part of one composite, states the precedence and mode-preservation rules, and requires a complete matching set before applying a newly delivered bundle. If incomplete, preserve any previously established complete configuration, report the missing chunks once, and do not activate from the partial bundle.”
+
+   Do not silently recover a deliberately disabled or untrusted handler by another route. Document trusting/enabling all handlers or explicitly invoking the composite.
+
+   **Resume and compaction create duplicates.** Treat repeated chunks with the same hash and index as repeated instructions, not new activation. Do not combine different hashes. Reinjection may still be needed after compaction, so a previous-delivery flag would be insufficient.
+
+   Replace the banner’s:
+
+   > “ADHD-UNSLOP MODE ACTIVE … Three parts follow”
+
+   With:
+
+   > “ADHD-UNSLOP INSTRUCTIONS. This is chunk N of 3 from bundle HASH. Receiving instructions does not itself change established mode state.”
+
+   Use **chunks** for the three deliveries and **modes** for ADHD and unslop. “Restore the state of each part” currently conflates them.
+
+2. **Question 2: Prefer generated chunk files, with reconstruction checked at build time.**
+
+   This moves marker parsing and partition validation out of three independently failing startup processes. Generate them from the same canonical composite and promote them with the other generated output.
+
+   Replace lines 286–288:
+
+   > “The launcher reads the chunks from the generated composite by its provenance markers, so the hook and the skill file cannot drift.”
+
+   With:
+
+   > “The build generates chunk payload files and a manifest containing their hashes and the composite hash. The launcher validates the selected payload before emitting it. Tests reconstruct the canonical composite from the payloads and reject stale generated files.”
+
+   **The current partition cannot reproduce the composite exactly.** The composite puts the final check last; chunk 1 moves it before both upstream bodies.
+
+   Replace lines 277–279:
+
+   > “Banner plus overlay (scope, precedence, lifecycle, final check).”
+
+   With this partition:
+
+   > “Chunk 1 contains the composite prefix through the lifecycle section. Chunk 2 contains the ADHD block, including its provenance markers. Chunk 3 contains the unslop block and the final check. Payloads are contiguous slices of the composite; transport headers are separate.”
+
+   Replace test 7’s:
+
+   > “parts 1 to 3 together reproduce the composite body exactly”
+
+   With:
+
+   > “After removing transport headers and footers, concatenating payloads in index order reproduces the composite body byte-for-byte.”
+
+   Also replace:
+
+   > “A test asserts each chunk is under 9,000 characters”
+
+   With:
+
+   > “Check the complete emitted value, including control headers, provenance, labels, and expanded flag paths, against both limits. Assemble and validate the entire value before writing stdout.”
+
+   A size test on payload files alone misses the added text.
+
+3. **Question 3: Two table entries still suppress compatible upstream rules.**
+
+   Row 1 says:
+
+   > “Headings, labels, and non-prose structure stay as they are.”
+
+   That exempts headings from unslop’s sentence-case, emoji, quotation, and vocabulary rules. Replace with:
+
+   > “Do not force headings or labels into sentences. Apply other active style rules to their wording and formatting. Preserve required non-prose structure.”
+
+   Apply that distinction to both columns. “Whole sentences with articles and verbs” should govern running prose, not force every document heading into a sentence.
+
+   Row 8 says:
+
+   > “Delete openers except an announcement the runtime requires.”
+
+   “Openers” could include the answer or action ADHD requires first. Replace with:
+
+   > “Remove preambles and announcements of intended work unless the runtime requires them. Keep the answer or action that opens the reply.”
+
+   The classification and independent-switch rules need no further redesign. The documented loss of conversation state remains acceptable for v1. Incomplete instruction delivery is a separate failure and must not be excused as state loss.
+
+**The delivery test does not establish complete delivery.**
+
+Test 13 asks:
+
+> “print the last heading of each adhd-unslop part you received”
+
+A preview can contain the last heading while omitting the middle. A heading can also precede several missing rules.
+
+Replace with:
+
+> “On both runtimes, inspect delivered hook context for missing text and spill previews, comparing available payloads with expected output. Supplement with temporary beginning, middle, and end sentinels; model recall alone is not proof. Exercise reordered delivery, each missing handler, duplicate chunks, mixed bundle hashes, and resume/compact after a mode change. Include a Codex case with only some handlers enabled or trusted.”
+
+These checks target the new delivery mechanism. They do not require repeating the writing suite for every installation route.
+
+**The lint exclusion still does not cover its example.**
+
+Lines 345–347 exclude fenced blocks, inline code, and provenance comments, then claim that quoted `"delve"` is excluded. Ordinary quotation marks are none of those.
+
+Replace the precedence example’s:
+
+> `the word "delve"`
+
+With:
+
+> ``the word `delve` ``
+
+Change the test explanation to “the inline-code example does not fail lint.”
+
+## Optional
+
+- Replace “the composite is about 18,000 characters” with “the build reports the exact emitted sizes.” The current precedence/lifecycle text and stripped upstream bodies already total **19,181 characters**, before provenance, the final check, and transport text.
+- Keep all-or-nothing delivery described as a model instruction, not a runtime guarantee. Independent handlers cannot enforce that guarantee by labelling their output.
+
+## Verdict
+
+REVISE
+
+1. Put completeness, bundle identity, precedence, and mode-preservation instructions in every chunk; define missing-handler behavior.
+2. Preserve composite order and make payload reconstruction exact.
+3. Validate complete emitted values before writing output.
+4. Replace the heading-recall test with delivery checks covering both runtimes, partial delivery, and reinjection.
+5. Correct the heading/opener rules and the remaining lint-example mismatch.
+tokens used
+219,133
+Three handlers can avoid the size limit. They do not make delivery complete or activation atomic.
+
+References are to [design/PLAN.md](/Users/ruben.varela/stow/documents-ruben/Development/00-Scratch/2026-09-12--adhd-unslop/design/PLAN.md).
+
+1. **Question 1: Labels address ordering, but not missing instructions.**
+
+   Claude documents the 10,000-character limit per returned context value. Several hooks can each return a value below that limit. This supports splitting, but does not promise three distinct transcript messages. [Claude hook documentation](https://code.claude.com/docs/en/hooks#add-context-for-claude)
+
+   Replace lines 271–272:
+
+   > “Both runtimes deliver every matching hook's output separately and all matching hooks run in parallel.”
+
+   With:
+
+   > “Matching handlers run concurrently. Keep all three synchronous. Each successful handler contributes context subject to its own output limit. Do not depend on arrival order or transcript message boundaries.”
+
+   **The critical failure is part 1 missing.** Parts 2 and 3 then deliver upstream instructions without the precedence rules, switches, or instruction to read all three. Conversely, part 1 alone announces activation without delivering either skill.
+
+   Codex can skip untrusted hooks and disable individual hooks. One matcher group is not an all-or-nothing execution contract. Timeouts and process failures can also leave a subset. [Codex hook documentation](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+
+   Replace lines 281–282:
+
+   > “Each chunk starts with a self-identifying line … because delivery order is not guaranteed.”
+
+   With:
+
+   > “Every chunk carries a common control header, the composite hash, its index and total count, and an end marker. The header identifies the payload as part of one composite, states the precedence and mode-preservation rules, and requires a complete matching set before applying a newly delivered bundle. If incomplete, preserve any previously established complete configuration, report the missing chunks once, and do not activate from the partial bundle.”
+
+   Do not silently recover a deliberately disabled or untrusted handler by another route. Document trusting/enabling all handlers or explicitly invoking the composite.
+
+   **Resume and compaction create duplicates.** Treat repeated chunks with the same hash and index as repeated instructions, not new activation. Do not combine different hashes. Reinjection may still be needed after compaction, so a previous-delivery flag would be insufficient.
+
+   Replace the banner’s:
+
+   > “ADHD-UNSLOP MODE ACTIVE … Three parts follow”
+
+   With:
+
+   > “ADHD-UNSLOP INSTRUCTIONS. This is chunk N of 3 from bundle HASH. Receiving instructions does not itself change established mode state.”
+
+   Use **chunks** for the three deliveries and **modes** for ADHD and unslop. “Restore the state of each part” currently conflates them.
+
+2. **Question 2: Prefer generated chunk files, with reconstruction checked at build time.**
+
+   This moves marker parsing and partition validation out of three independently failing startup processes. Generate them from the same canonical composite and promote them with the other generated output.
+
+   Replace lines 286–288:
+
+   > “The launcher reads the chunks from the generated composite by its provenance markers, so the hook and the skill file cannot drift.”
+
+   With:
+
+   > “The build generates chunk payload files and a manifest containing their hashes and the composite hash. The launcher validates the selected payload before emitting it. Tests reconstruct the canonical composite from the payloads and reject stale generated files.”
+
+   **The current partition cannot reproduce the composite exactly.** The composite puts the final check last; chunk 1 moves it before both upstream bodies.
+
+   Replace lines 277–279:
+
+   > “Banner plus overlay (scope, precedence, lifecycle, final check).”
+
+   With this partition:
+
+   > “Chunk 1 contains the composite prefix through the lifecycle section. Chunk 2 contains the ADHD block, including its provenance markers. Chunk 3 contains the unslop block and the final check. Payloads are contiguous slices of the composite; transport headers are separate.”
+
+   Replace test 7’s:
+
+   > “parts 1 to 3 together reproduce the composite body exactly”
+
+   With:
+
+   > “After removing transport headers and footers, concatenating payloads in index order reproduces the composite body byte-for-byte.”
+
+   Also replace:
+
+   > “A test asserts each chunk is under 9,000 characters”
+
+   With:
+
+   > “Check the complete emitted value, including control headers, provenance, labels, and expanded flag paths, against both limits. Assemble and validate the entire value before writing stdout.”
+
+   A size test on payload files alone misses the added text.
+
+3. **Question 3: Two table entries still suppress compatible upstream rules.**
+
+   Row 1 says:
+
+   > “Headings, labels, and non-prose structure stay as they are.”
+
+   That exempts headings from unslop’s sentence-case, emoji, quotation, and vocabulary rules. Replace with:
+
+   > “Do not force headings or labels into sentences. Apply other active style rules to their wording and formatting. Preserve required non-prose structure.”
+
+   Apply that distinction to both columns. “Whole sentences with articles and verbs” should govern running prose, not force every document heading into a sentence.
+
+   Row 8 says:
+
+   > “Delete openers except an announcement the runtime requires.”
+
+   “Openers” could include the answer or action ADHD requires first. Replace with:
+
+   > “Remove preambles and announcements of intended work unless the runtime requires them. Keep the answer or action that opens the reply.”
+
+   The classification and independent-switch rules need no further redesign. The documented loss of conversation state remains acceptable for v1. Incomplete instruction delivery is a separate failure and must not be excused as state loss.
+
+**The delivery test does not establish complete delivery.**
+
+Test 13 asks:
+
+> “print the last heading of each adhd-unslop part you received”
+
+A preview can contain the last heading while omitting the middle. A heading can also precede several missing rules.
+
+Replace with:
+
+> “On both runtimes, inspect delivered hook context for missing text and spill previews, comparing available payloads with expected output. Supplement with temporary beginning, middle, and end sentinels; model recall alone is not proof. Exercise reordered delivery, each missing handler, duplicate chunks, mixed bundle hashes, and resume/compact after a mode change. Include a Codex case with only some handlers enabled or trusted.”
+
+These checks target the new delivery mechanism. They do not require repeating the writing suite for every installation route.
+
+**The lint exclusion still does not cover its example.**
+
+Lines 345–347 exclude fenced blocks, inline code, and provenance comments, then claim that quoted `"delve"` is excluded. Ordinary quotation marks are none of those.
+
+Replace the precedence example’s:
+
+> `the word "delve"`
+
+With:
+
+> ``the word `delve` ``
+
+Change the test explanation to “the inline-code example does not fail lint.”
+
+## Optional
+
+- Replace “the composite is about 18,000 characters” with “the build reports the exact emitted sizes.” The current precedence/lifecycle text and stripped upstream bodies already total **19,181 characters**, before provenance, the final check, and transport text.
+- Keep all-or-nothing delivery described as a model instruction, not a runtime guarantee. Independent handlers cannot enforce that guarantee by labelling their output.
+
+## Verdict
+
+REVISE
+
+1. Put completeness, bundle identity, precedence, and mode-preservation instructions in every chunk; define missing-handler behavior.
+2. Preserve composite order and make payload reconstruction exact.
+3. Validate complete emitted values before writing output.
+4. Replace the heading-recall test with delivery checks covering both runtimes, partial delivery, and reinjection.
+5. Correct the heading/opener rules and the remaining lint-example mismatch.
+exit=0
