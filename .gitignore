@@ -1,0 +1,14 @@
+.sync-staging/
+node_modules/
+.DS_Store
+i-have-adhd--repo/
+pstack-claude--repo/
+# leftovers from the scratch phase, not part of the plugin
+.git-old/
+.git-old-file
+.codex-rounds/
+.idea/
+/i-have-adhd/
+/unslop/
+.claude/
+.agents/skills/
