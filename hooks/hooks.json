@@ -1,0 +1,32 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.env.ADHD_UNSLOP_CHUNK='1';(async()=>{const root=process.env.CLAUDE_PLUGIN_ROOT||process.env.PLUGIN_ROOT;if(root)await import(require('node:url').pathToFileURL(require('node:path').join(root,'hooks','always-on.mjs')).href)})().catch(()=>{})\"",
+            "timeout": 30,
+            "statusMessage": "adhd-unslop always-on chunk 1 of 3 (scope and lifecycle)...",
+            "additionalContextLimit": 5000
+          },
+          {
+            "type": "command",
+            "command": "node -e \"process.env.ADHD_UNSLOP_CHUNK='2';(async()=>{const root=process.env.CLAUDE_PLUGIN_ROOT||process.env.PLUGIN_ROOT;if(root)await import(require('node:url').pathToFileURL(require('node:path').join(root,'hooks','always-on.mjs')).href)})().catch(()=>{})\"",
+            "timeout": 30,
+            "statusMessage": "adhd-unslop always-on chunk 2 of 3 (i-have-adhd)...",
+            "additionalContextLimit": 5000
+          },
+          {
+            "type": "command",
+            "command": "node -e \"process.env.ADHD_UNSLOP_CHUNK='3';(async()=>{const root=process.env.CLAUDE_PLUGIN_ROOT||process.env.PLUGIN_ROOT;if(root)await import(require('node:url').pathToFileURL(require('node:path').join(root,'hooks','always-on.mjs')).href)})().catch(()=>{})\"",
+            "timeout": 30,
+            "statusMessage": "adhd-unslop always-on chunk 3 of 3 (unslop and final check)...",
+            "additionalContextLimit": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
