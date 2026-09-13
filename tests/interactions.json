@@ -1,0 +1,10 @@
+[
+  { "id": 1, "name": "Fragments" },
+  { "id": 2, "name": "Parentheses" },
+  { "id": 3, "name": "Closing question" },
+  { "id": 4, "name": "Estimates" },
+  { "id": 5, "name": "State" },
+  { "id": 6, "name": "Lists" },
+  { "id": 7, "name": "Tone" },
+  { "id": 8, "name": "Announcements" }
+]
