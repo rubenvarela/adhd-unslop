@@ -1,0 +1,21 @@
+{
+  "name": "adhd-unslop",
+  "interface": {
+    "displayName": "ADHD Unslop"
+  },
+  "plugins": [
+    {
+      "name": "adhd-unslop",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL",
+        "products": ["CODEX"]
+      },
+      "category": "Productivity"
+    }
+  ]
+}

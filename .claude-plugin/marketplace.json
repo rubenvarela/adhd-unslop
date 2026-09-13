@@ -1,0 +1,17 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
+  "name": "adhd-unslop",
+  "description": "i-have-adhd and unslop together, with ADHD winning in direct replies and unslop winning in other writing.",
+  "owner": {
+    "name": "Ruben Varela"
+  },
+  "plugins": [
+    {
+      "name": "adhd-unslop",
+      "description": "ADHD-friendly replies plus unslopped writing, with a defined tie-breaker.",
+      "source": "./",
+      "category": "productivity",
+      "version": "0.1.0"
+    }
+  ]
+}

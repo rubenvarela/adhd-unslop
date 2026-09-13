@@ -1,0 +1,32 @@
+{
+  "name": "adhd-unslop",
+  "version": "0.1.0",
+  "description": "i-have-adhd and unslop in one skill with a defined tie-breaker: ADHD shape wins in direct replies, unslop wins everywhere else.",
+  "author": {
+    "name": "Ruben Varela"
+  },
+  "license": "MIT",
+  "keywords": [
+    "adhd",
+    "unslop",
+    "output-style",
+    "writing",
+    "skills",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ADHD Unslop",
+    "shortDescription": "ADHD-friendly replies, unslopped writing, one tie-breaker",
+    "longDescription": "Combines the i-have-adhd and unslop skills. Both rule sets stay active. On a conflict, i-have-adhd wins in a direct reply to the user and unslop wins in any other writing.",
+    "developerName": "Ruben Varela",
+    "category": "Productivity",
+    "capabilities": [
+      "Instructions"
+    ],
+    "defaultPrompt": [
+      "Use $adhd-unslop for this session."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

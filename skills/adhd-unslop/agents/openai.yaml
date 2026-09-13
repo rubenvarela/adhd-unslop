@@ -1,0 +1,7 @@
+interface:
+  display_name: "ADHD Unslop"
+  short_description: "ADHD-friendly replies, unslopped writing, one tie-breaker"
+  default_prompt: "Use $adhd-unslop for this session."
+
+policy:
+  allow_implicit_invocation: false

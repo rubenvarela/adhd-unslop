@@ -1,0 +1,9 @@
+{
+  "name": "adhd-unslop",
+  "version": "0.1.0",
+  "description": "i-have-adhd and unslop in one skill with a defined tie-breaker: ADHD shape wins in direct replies, unslop wins everywhere else.",
+  "author": {
+    "name": "Ruben Varela"
+  },
+  "license": "MIT"
+}
