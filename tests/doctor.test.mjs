@@ -169,7 +169,7 @@ describe("doctor failures", () => {
 });
 
 describe("doctor runtime detection and installed layouts", () => {
-  test("a Claude Code cache install: runtime claude, newest non-orphaned mirror, no Codex checks", () => {
+  test("a Claude Code cache install: runtime claude, mirror versions from the install record, no Codex checks", () => {
     const dirs = tempDirs();
     const cache = path.join(dirs.claude, "plugins", "cache", "adhd-unslop");
     const version = versionOf(path.join(plugins, "adhd-unslop"));
@@ -183,6 +183,11 @@ describe("doctor runtime detection and installed layouts", () => {
       fs.writeFileSync(p, JSON.stringify({ ...JSON.parse(fs.readFileSync(p, "utf8")), version: "9.9.9" }));
     }
     fs.writeFileSync(path.join(mirror, "9.9.9", ".orphaned_at"), "1");
+    // The record, not the newest cache folder, decides what is installed.
+    fs.writeFileSync(path.join(dirs.claude, "plugins", "installed_plugins.json"), JSON.stringify({
+      version: 2,
+      plugins: { "adhd-unslop@adhd-unslop": [{ scope: "user", version }], "au-unslop@adhd-unslop": [{ scope: "user", version: versionOf(path.join(plugins, "au-unslop")) }] },
+    }));
     fs.writeFileSync(path.join(dirs.codex, "config.toml"), "[features]\nhooks = false\n");
     const r = runDoctor(dirs, { root });
     assert.equal(r.status, 0, r.stdout);
@@ -208,6 +213,78 @@ describe("doctor runtime detection and installed layouts", () => {
   test("PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT name the runtime when set", () => {
     assert.ok(runDoctor(tempDirs(), { env: { PLUGIN_ROOT: "/x" } }).has(/^OK {3}runtime: Codex \(PLUGIN_ROOT is set\)$/));
     assert.ok(runDoctor(tempDirs(), { env: { CLAUDE_PLUGIN_ROOT: "/x" } }).has(/^OK {3}runtime: Claude Code \(CLAUDE_PLUGIN_ROOT is set\)$/));
+  });
+});
+
+describe("doctor optional mirrors", () => {
+  // A Claude Code cache: <config>/plugins/cache/adhd-unslop/<plugin>/<version>/.
+  const claudeCache = (dirs) => {
+    const cache = path.join(dirs.claude, "plugins", "cache", "adhd-unslop");
+    for (const n of ["adhd-unslop", ...MIRRORS]) fs.cpSync(path.join(plugins, n), path.join(cache, n, versionOf(path.join(plugins, n))), { recursive: true });
+    return path.join(cache, "adhd-unslop", versionOf(path.join(plugins, "adhd-unslop")));
+  };
+  const record = (dirs, names) => {
+    const entries = Object.fromEntries(names.map((n) => [`${n}@adhd-unslop`, [{ scope: "user", version: versionOf(path.join(plugins, n)) }]]));
+    fs.writeFileSync(path.join(dirs.claude, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: entries }));
+  };
+
+  test("Claude Code: cache folders alone do not count as installed", () => {
+    const dirs = tempDirs();
+    const root = claudeCache(dirs);
+    record(dirs, ["adhd-unslop"]);
+    const r = runDoctor(dirs, { root });
+    assert.ok(r.has(/^OK {3}runtime: Claude Code/), r.stdout);
+    for (const m of MIRRORS) assert.ok(r.lines.includes(`OK   ${m}: not installed (optional)`), r.stdout);
+    assert.deepEqual(r.warns, []);
+  });
+
+  for (const [label, content] of [
+    ["absent", null],
+    ["invalid JSON", "{not json"],
+    ["plugins: null", JSON.stringify({ version: 2, plugins: null })],
+    ["plugins as an array", JSON.stringify({ version: 2, plugins: [] })],
+  ]) {
+    test(`Claude Code: install record ${label}: the mirrors are unknown, not installed`, () => {
+      const dirs = tempDirs();
+      const root = claudeCache(dirs);
+      const file = path.join(dirs.claude, "plugins", "installed_plugins.json");
+      if (content !== null) fs.writeFileSync(file, content);
+      const r = runDoctor(dirs, { root });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.equal(r.stderr, "");
+      for (const m of MIRRORS) assert.ok(r.has(new RegExp(`^OK {3}${m}: unknown, because the Claude Code install record .* is missing or unreadable, or has no readable entry for it \\(optional\\)$`)), r.stdout);
+      assert.deepEqual(r.warns, []);
+      assert.deepEqual(r.fails, []);
+    });
+  }
+
+  for (const [label, entry] of [
+    ["an object", {}],
+    ["a list without versions", [{ scope: "user" }]],
+    ["null", null],
+    ["a list with an empty version", [{ scope: "user", version: "" }]],
+    ["a list with a blank version", [{ scope: "user", version: "  " }]],
+    ["an empty list", []],
+  ]) {
+    test(`Claude Code: a mirror entry that is ${label} makes that mirror unknown`, () => {
+      const dirs = tempDirs();
+      const root = claudeCache(dirs);
+      fs.writeFileSync(path.join(dirs.claude, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "au-unslop@adhd-unslop": entry } }));
+      const r = runDoctor(dirs, { root });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.ok(r.has(/^OK {3}au-unslop: unknown, because /), r.stdout);
+      assert.ok(r.lines.includes("OK   au-i-have-adhd: not installed (optional)"), r.stdout);
+      assert.deepEqual(r.warns, []);
+    });
+  }
+
+  test("Claude Code: the install record lists an installed mirror", () => {
+    const dirs = tempDirs();
+    const root = claudeCache(dirs);
+    record(dirs, ["adhd-unslop", "au-unslop"]);
+    const r = runDoctor(dirs, { root });
+    assert.ok(r.has(new RegExp(`^OK {3}au-unslop: installed \\(${versionOf(path.join(plugins, "au-unslop")).replace(/\./g, "\\.")}\\)$`)), r.stdout);
+    assert.ok(r.lines.includes("OK   au-i-have-adhd: not installed (optional)"), r.stdout);
   });
 });
 

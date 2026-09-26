@@ -148,13 +148,31 @@ if (manifest && typeof manifest.version === "string") {
 }
 
 // 3. Optional mirrors. Never WARN or FAIL: adhd-unslop does not need them.
+// Returns the installed version, null when not installed, or UNKNOWN.
+const UNKNOWN = Symbol("unknown");
 function mirrorVersion(name) {
   // Repo checkout: plugins/<name>/ next to plugins/adhd-unslop/.
   const sibling = path.join(root, "..", name);
   const direct = manifestVersion(sibling);
   if (direct) return direct;
-  // Installed: <cache>/<marketplace>/<name>/<version>/. Claude Code keeps
-  // replaced versions for a while and marks them with .orphaned_at.
+  // Claude Code keeps cache folders for plugins that are not installed, so
+  // its install record decides. installed_plugins.json maps
+  // "<plugin>@<marketplace>" to a list of installs, each with a version.
+  // Without a readable record the answer is unknown: the cache would guess.
+  if (runtime === "claude") {
+    const record = readJson(path.join(claudeDir, "plugins", "installed_plugins.json"));
+    const plugins = record && typeof record === "object" ? record.plugins : null;
+    if (!plugins || typeof plugins !== "object" || Array.isArray(plugins)) return UNKNOWN;
+    const key = `${name}@${MARKETPLACE}`;
+    if (!Object.hasOwn(plugins, key)) return null;
+    // A present entry that is not a list of installs with versions is unreadable.
+    const installs = plugins[key];
+    const versions = (Array.isArray(installs) ? installs : []).map((i) => i?.version).filter((v) => typeof v === "string" && v.trim() !== "").sort(compareVersions);
+    return versions.at(-1) ?? UNKNOWN;
+  }
+  // Codex removes a plugin's cache folder when the plugin is removed, so the
+  // cache decides: <cache>/<marketplace>/<name>/<version>/, skipping versions
+  // marked with .orphaned_at.
   const base = path.join(root, "..", "..", name);
   let entries = [];
   try {
@@ -171,7 +189,9 @@ function mirrorVersion(name) {
 }
 for (const name of MIRRORS) {
   const v = mirrorVersion(name);
-  ok(v ? `${name}: installed (${v})` : `${name}: not installed (optional)`);
+  if (v === UNKNOWN) ok(`${name}: unknown, because the Claude Code install record ${path.join(claudeDir, "plugins", "installed_plugins.json")} is missing or unreadable, or has no readable entry for it (optional)`);
+  else if (v === null) ok(`${name}: not installed (optional)`);
+  else ok(`${name}: installed (${v})`);
 }
 
 // 4. Always-on switch and flag files. 5. Chunks.
