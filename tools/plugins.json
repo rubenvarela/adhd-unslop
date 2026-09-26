@@ -59,7 +59,7 @@
     },
     {
       "name": "adhd-unslop",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "kind": "composed",
       "embeds": [
         "i-have-adhd",

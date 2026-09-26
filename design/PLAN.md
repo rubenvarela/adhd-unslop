@@ -1,6 +1,11 @@
 # Plan: run i-have-adhd and unslop together with defined tie-breaking
 
-Status: v5, CONSENSUS in Codex round 5 (design/round-5-codex.md). Built. Results in design/BEHAVIOR.md.
+Status: v5, CONSENSUS in Codex round 5 (design/round-5-codex.md). Built as v0.1.0. Results in design/BEHAVIOR.md.
+
+Historical. The 2026-09-26 restructure in `RESTRUCTURE.md` replaced the
+single-plugin layout, and `DECISIONS.md` supersedes this file where they
+disagree. Paths such as `overlay/`, `skills/`, and `hooks/` at the repo root
+no longer exist.
 
 ## Goal
 

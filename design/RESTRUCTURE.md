@@ -1,8 +1,9 @@
 # Restructure plan: one marketplace, several plugins
 
-Status: steps 1 to 6 implemented on branch `restructure-marketplace`,
-2026-09-26. Step 7 waits for approval. Supersedes the single-plugin layout
-in `PLAN.md`.
+Status: implemented and merged 2026-09-26 (PR #1), including step 7. The
+first upstream bump merged as PR #2. `DECISIONS.md` has the distilled
+decisions and supersedes this file where they disagree. This file keeps
+the test runs and the reasoning at the time.
 
 ## Where the implementation differs
 

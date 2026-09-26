@@ -1,5 +1,9 @@
 # Behavioral test results
 
+Historical, for v0.1.0. The `~/.agents/skills` symlink used for Codex here is
+no longer supported, because it creates a duplicate skill name (see
+`DECISIONS.md` D20). Current end-to-end checks live in `tests/e2e/run.sh`.
+
 Date: 2026-09-12. Repo state: composite body sha256 7d8542079093 (bundle id).
 
 | Runtime | Version | Model | Activation |

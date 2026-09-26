@@ -103,7 +103,7 @@ This table applies when both modes are active and applicable. It does not overri
 
 A mode is a rule set, either ADHD or unslop. Each mode has its own switch. A chunk is one of the three parts delivered by the always-on hook.
 
-**Activation.** The user activates the skill with `/adhd-unslop` in Claude Code or `$adhd-unslop` in Codex. Explicit invocation enables both modes. The always-on hook can also activate the skill at session startup or clear.
+**Activation.** The user activates the skill with `/adhd-unslop` in Claude Code or `$adhd-unslop:adhd-unslop` in Codex. Explicit invocation enables both modes. The always-on hook can also activate the skill at session startup or clear.
 
 Hook delivery:
 
