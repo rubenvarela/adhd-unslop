@@ -5,7 +5,7 @@ This skill combines i-have-adhd and unslop:
 - i-have-adhd helps a reader with ADHD act on replies
 - unslop removes AI patterns from writing
 
-Both skills appear below, unchanged from upstream. Added rules cover:
+Both skills are used unchanged from upstream. Invoking this skill loads them as separate skills, and the always-on hook delivers them with this text. The added rules cover:
 
 1. Where each mode applies
 2. Which mode wins when they conflict

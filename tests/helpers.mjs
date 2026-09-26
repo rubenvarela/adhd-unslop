@@ -5,11 +5,13 @@ import { fileURLToPath } from "node:url";
 
 export const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const read = (...p) => fs.readFileSync(path.join(repo, ...p), "utf8");
+export const pluginRoot = path.join(repo, "plugins", "adhd-unslop");
+export const readPlugin = (...p) => fs.readFileSync(path.join(pluginRoot, ...p), "utf8");
 
 // Copy the runtime parts of the plugin into a temp root so tests can break them.
 export function tempPlugin() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "adhd-unslop-plugin-"));
-  for (const rel of ["hooks", "skills"]) fs.cpSync(path.join(repo, rel), path.join(root, rel), { recursive: true });
+  for (const rel of ["hooks", "skills"]) fs.cpSync(path.join(pluginRoot, rel), path.join(root, rel), { recursive: true });
   return root;
 }
 

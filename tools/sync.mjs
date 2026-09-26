@@ -12,11 +12,12 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { sha256, stripFrontmatter } from "../hooks/lib.mjs";
+import { sha256, stripFrontmatter } from "../plugins/adhd-unslop/hooks/lib.mjs";
 
 const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pinsPath = path.join(repo, "tools", "upstream.json");
 const staging = path.join(repo, ".sync-staging");
+const overlayDir = path.join(repo, "src", "adhd-unslop", "overlay");
 
 const read = (p) => fs.readFileSync(p, "utf8");
 const readPins = () => JSON.parse(read(pinsPath));
@@ -52,7 +53,7 @@ export function ruleNumbers(name, body) {
 
 export function overlayCitations(name) {
   const label = name === "unslop" ? "unslop rule" : "ADHD rule";
-  const text = fs.readdirSync(path.join(repo, "overlay")).map((f) => read(path.join(repo, "overlay", f))).join("\n");
+  const text = fs.readdirSync(overlayDir).map((f) => read(path.join(overlayDir, f))).join("\n");
   const re = new RegExp(`${label}s? (\\d+)(?:(?:,| and| to) (\\d+))*`, "g");
   const cited = new Set();
   for (const m of text.matchAll(re)) {

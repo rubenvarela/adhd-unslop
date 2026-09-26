@@ -1,0 +1,6 @@
+interface:
+  display_name: "i-have-adhd (pinned)"
+  short_description: "Replies shaped for a reader with ADHD"
+
+policy:
+  allow_implicit_invocation: true

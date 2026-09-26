@@ -7,11 +7,25 @@
   },
   "plugins": [
     {
-      "name": "adhd-unslop",
-      "description": "ADHD-friendly replies plus unslopped writing, with a defined tie-breaker.",
-      "source": "./",
+      "name": "au-i-have-adhd",
+      "description": "Pinned copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
+      "source": "./plugins/au-i-have-adhd",
       "category": "productivity",
       "version": "0.1.0"
+    },
+    {
+      "name": "au-unslop",
+      "description": "Pinned copy of the unslop skill from pstack-claude by Michael Denyer (github.com/michael-denyer/pstack-claude). Removes AI patterns from writing.",
+      "source": "./plugins/au-unslop",
+      "category": "productivity",
+      "version": "0.1.0"
+    },
+    {
+      "name": "adhd-unslop",
+      "description": "ADHD-friendly replies plus unslopped writing, with a defined tie-breaker.",
+      "source": "./plugins/adhd-unslop",
+      "category": "productivity",
+      "version": "0.2.0"
     }
   ]
 }

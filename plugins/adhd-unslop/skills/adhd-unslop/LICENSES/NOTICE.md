@@ -1,7 +1,9 @@
 # Notice
 
-This skill embeds two upstream works, byte-for-byte after removing their
-YAML frontmatter. Each keeps its own MIT license in this directory.
+The always-on hook of this plugin embeds two upstream works, byte-for-byte
+after removing their YAML frontmatter. The skill loads the same texts from
+the au-i-have-adhd and au-unslop plugins. Each keeps its own MIT license in
+this directory.
 
 | Upstream | Repository | Commit | File | License file |
 | --- | --- | --- | --- | --- |

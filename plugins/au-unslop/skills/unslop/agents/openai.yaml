@@ -1,0 +1,6 @@
+interface:
+  display_name: "unslop (pinned)"
+  short_description: "Removes AI patterns from writing"
+
+policy:
+  allow_implicit_invocation: true

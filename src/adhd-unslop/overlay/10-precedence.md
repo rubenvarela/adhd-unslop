@@ -9,7 +9,7 @@ When both modes apply and conflict:
 
 A rule without a conflict still applies. Example: ADHD has no rule about em dashes or the word `delve`, so unslop rules 13 and 7 apply to direct replies too.
 
-This file's scope, lifecycle, and precedence sections override conflicting statements in the embedded upstream text.
+This file's scope, lifecycle, and precedence sections override conflicting statements in the i-have-adhd and unslop texts.
 
 Unslop's "Must always apply" instruction applies to every passage you write or edit while unslop mode is active.
 

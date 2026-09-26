@@ -103,3 +103,46 @@ export function renderChunk(root, index, { flags, tokenLimit = DEFAULT_TOKEN_LIM
   }
   return { ok: true, text, tokens };
 }
+
+// Dependency check for the SessionStart warning hook. Both runtimes cache a
+// plugin at <cache>/<marketplace>/<plugin>/<version>/, so a sibling sits at
+// <root>/../../<name>. A checkout of this repo keeps siblings at <root>/../<name>.
+function isDir(p) {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+export function missingDependencies(root) {
+  const deps = JSON.parse(fs.readFileSync(path.join(root, "hooks", "dependencies.json"), "utf8"));
+  const plugins = deps.plugins.filter((name) => !isDir(path.join(root, "..", name)) && !isDir(path.join(root, "..", "..", name)));
+  return { marketplace: deps.marketplace, plugins };
+}
+
+function isInside(child, parent) {
+  const r = path.relative(parent, child);
+  return r !== "" && !r.startsWith("..") && !path.isAbsolute(r);
+}
+
+// "codex", "claude", or null when the plugin root is in neither config dir.
+export function runtimeOf(root, env = process.env, home = os.homedir()) {
+  const codexDir = env.CODEX_HOME || path.join(home, ".codex");
+  const claudeDir = env.CLAUDE_CONFIG_DIR || path.join(home, ".claude");
+  if (isInside(root, codexDir)) return "codex";
+  if (isInside(root, claudeDir)) return "claude";
+  return null;
+}
+
+export function installCommand(runtime, plugin, marketplace) {
+  return runtime === "codex" ? `codex plugin add ${plugin}@${marketplace}` : `claude plugin install ${plugin}@${marketplace}`;
+}
+
+export function dependencyWarning(root, { marketplace, plugins }, env = process.env, home = os.homedir()) {
+  const runtime = runtimeOf(root, env, home);
+  const runtimes = runtime ? [runtime] : ["claude", "codex"];
+  const commands = plugins.flatMap((p) => runtimes.map((r) => installCommand(r, p, marketplace)));
+  const names = plugins.join(", ");
+  return `adhd-unslop needs ${plugins.length === 1 ? "a plugin that is" : "plugins that are"} not installed: ${names}. Install with: ${commands.join("; ")}. Then start a new session.`;
+}

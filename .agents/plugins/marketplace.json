@@ -5,15 +5,47 @@
   },
   "plugins": [
     {
-      "name": "adhd-unslop",
+      "name": "au-i-have-adhd",
       "source": {
         "source": "local",
-        "path": "./"
+        "path": "./plugins/au-i-have-adhd"
       },
       "policy": {
         "installation": "AVAILABLE",
         "authentication": "ON_INSTALL",
-        "products": ["CODEX"]
+        "products": [
+          "CODEX"
+        ]
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "au-unslop",
+      "source": {
+        "source": "local",
+        "path": "./plugins/au-unslop"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL",
+        "products": [
+          "CODEX"
+        ]
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "adhd-unslop",
+      "source": {
+        "source": "local",
+        "path": "./plugins/adhd-unslop"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL",
+        "products": [
+          "CODEX"
+        ]
       },
       "category": "Productivity"
     }

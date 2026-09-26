@@ -1,4 +1,7 @@
-<!-- BEGIN upstream unslop michael-denyer/pstack-claude/plugins/pstack/skills/unslop/SKILL.md @458050195fdb347955a63812e6d749f164a8f62d -->
+---
+name: unslop
+description: 'Remove AI patterns from writing. Load only when the user invokes it (/au-unslop:unslop in Claude Code, $au-unslop:unslop in Codex) or another skill, such as adhd-unslop, tells you to.'
+---
 
 # Unslop
 
@@ -62,16 +65,3 @@ Rule numbers are stable ids that other skills cite. A removed rule leaves a gap.
 31. **Prefer the plain word.** "utilize" becomes "use", "leverage" becomes "use", "facilitate" becomes "help", "numerous" becomes "many", "in the event that" becomes "if". The fancier synonym is rarely clearer.
 32. **Mannered prose.** Metaphor or flourish where a literal phrase exists: aphorisms ("wire it or delete it"), rhetorical fragments for effect, personified code ("the plan holds it"), figurative verbs ("rides along", "stands on"), stock framing phrases. "A dial worth turning" becomes "a parameter worth varying". Say what you mean. Rule 26 covers the metaphor nouns.
 33. **Over-compression.** Dropped articles, verbless fragments, symbol-speak, and abbreviations that make the reader decode instead of read. "Parser rejects bad date → exit 2, no write" becomes "The parser rejects a bad date, exits with code 2, and writes nothing." Write whole sentences with their articles and verbs, and spell out arrows and abbreviations.
-<!-- END upstream unslop -->
-
-## Final check
-
-Before sending, complete these checks in order. Apply only the checks for active modes.
-
-1. Classify each passage as a direct reply or other writing.
-2. If unslop mode is active, run unslop process 1 to 3 on every passage. In direct replies, preserve any functional fragment, locator parenthesis, next-action line, or status line the active ADHD rules require. Follow the outcome table.
-3. If ADHD mode is active, run ADHD checks 1 to 5 on direct replies only. Then verify each direct reply's first and last lines as ADHD requires.
-4. Confirm you added no session bookkeeping to other writing.
-5. Confirm applying this file did not override any upstream exception.
-
-These checks do not replace the upstream processes they call for. Both upstream texts are part of these instructions, whether loaded as skills or delivered by the hook.
