@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, test } from "node:test";
 import {
   authoredPlugins,
   composeChunks,
   expectedFiles,
+  GENERATED_ROOTS,
   loadConfig,
   loadPins,
   markers,
@@ -26,7 +28,7 @@ import { repo, read, readPlugin, pluginRoot } from "./helpers.mjs";
 const config = loadConfig();
 const pins = loadPins();
 const composed = config.plugins.find((p) => p.name === "adhd-unslop");
-const frontmatterOf = (text) => text.match(/^---\n([\s\S]*?)\n---\n/)[1];
+const frontmatterOf = (text) => text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/)[1];
 const skillNamesOf = (p) => (p.kind === "vendored" ? [p.skill] : Object.keys(p.skills));
 
 describe("generated files", () => {
@@ -38,18 +40,20 @@ describe("generated files", () => {
     assert.deepEqual(strayFiles(), []);
   });
 
-  test("a stray file is reported, and --prune removes only strays", () => {
-    const stray = path.join(repo, "plugins", "adhd-unslop", "skills", "adhd-unslop", "stray-test-file.md");
-    fs.writeFileSync(stray, "stray\n");
-    try {
-      assert.ok(strayFiles().includes("plugins/adhd-unslop/skills/adhd-unslop/stray-test-file.md"));
-      const removed = prune();
-      assert.deepEqual(removed, ["plugins/adhd-unslop/skills/adhd-unslop/stray-test-file.md"]);
-      assert.ok(!fs.existsSync(stray));
-      assert.deepEqual(staleFiles(), []);
-    } finally {
-      fs.rmSync(stray, { force: true });
-    }
+  test("a stray file is reported, and prune removes only strays, in a copy of the generated folders", () => {
+    // Never prune the working tree from a test: a person's stray file there is theirs to keep.
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "adhd-unslop-prune-"));
+    for (const top of GENERATED_ROOTS) fs.cpSync(path.join(repo, top), path.join(tmp, top), { recursive: true });
+    const rel = "plugins/adhd-unslop/skills/adhd-unslop/stray-test-file.md";
+    fs.writeFileSync(path.join(tmp, rel), "stray\n");
+    fs.mkdirSync(path.join(tmp, "plugins", "adhd-unslop", "empty-stray-dir", "nested"), { recursive: true });
+    const expected = expectedFiles();
+    assert.deepEqual(strayFiles(expected, tmp), [rel]);
+    assert.deepEqual(prune(expected, tmp), [rel]);
+    assert.ok(!fs.existsSync(path.join(tmp, rel)));
+    assert.ok(!fs.existsSync(path.join(tmp, "plugins", "adhd-unslop", "empty-stray-dir")));
+    for (const file of expected.keys()) assert.ok(fs.existsSync(path.join(tmp, file)), `kept ${file}`);
+    fs.rmSync(tmp, { recursive: true, force: true });
   });
 
   test("no file under plugins/ is a symlink", () => {
@@ -82,7 +86,7 @@ describe("generated files", () => {
 
   test("no template syntax survives the build", () => {
     for (const [file, text] of expectedFiles()) {
-      if (file.endsWith(".md")) assert.doesNotMatch(text, /^\{\{include /m, file);
+      if (file.endsWith(".md")) assert.doesNotMatch(text, /^\{\{/m, file);
       assert.ok(!file.endsWith(".tmpl"), `${file} shipped a template`);
     }
   });
@@ -184,8 +188,9 @@ describe("vendored mirrors", () => {
     });
   }
 
-  test("userOnly reads only the frontmatter flag", () => {
+  test("userOnly reads only the frontmatter flag, with LF or CRLF", () => {
     assert.equal(userOnly("---\nname: x\ndisable-model-invocation: true\n---\nbody\n"), true);
+    assert.equal(userOnly("---\r\nname: x\r\ndisable-model-invocation: true\r\n---\r\nbody\r\n"), true);
     assert.equal(userOnly("---\nname: x\n---\ndisable-model-invocation: true\n"), false);
     assert.equal(userOnly("---\nname: x\ndisable-model-invocation: false\n---\n"), false);
   });
@@ -218,6 +223,10 @@ describe("embedded upstreams", () => {
   test("a template whose upstream directives disagree with tools/plugins.json fails the build", () => {
     assert.deepEqual(templateUpstreams("a\n{{upstream unslop}}\nb\n{{upstream i-have-adhd}}\n"), ["unslop", "i-have-adhd"]);
     assert.throws(() => renderTemplate("adhd-unslop", "{{upstream not-pinned}}\n"), /unpinned upstream not-pinned/);
+    assert.throws(() => renderTemplate("adhd-unslop", "{{includ overlay/00-intro.md}}\n"), /unknown template line/);
+    assert.deepEqual(templateUpstreams("{{upstream unslop}}\r\n"), ["unslop"]);
+    const crlf = renderTemplate("adhd-unslop", "{{upstream unslop}}\r\n");
+    assert.ok(crlf.startsWith(markers("unslop", pins).begin), "a CRLF directive line is still replaced");
   });
 });
 

@@ -148,7 +148,7 @@ export function bumpPatch(version) {
 }
 
 // Plugins whose shipped text includes one of these upstreams: its mirror, any
-// skill that lists it in references, and any always-on chunk that carries it.
+// skill that embeds it, and any always-on chunk that carries it.
 export function pluginsEmbedding(config, names) {
   return config.plugins.filter((p) => upstreamsShipped(p).some((n) => names.includes(n))).map((p) => p.name);
 }

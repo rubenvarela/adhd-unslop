@@ -72,7 +72,7 @@ describe("doctor output", () => {
     assert.equal(r.stderr, "");
     assert.deepEqual(r.fails, []);
     assert.deepEqual(r.warns, []);
-    for (const l of r.lines) assert.match(l, /^(OK {3}|WARN |FAIL | {5}fix: )\S/, l);
+    for (const l of r.lines) assert.match(l, /^(OK {3}|WARN |FAIL | {5}fix: | {5}then: )\S/, l);
     assert.ok(r.has(/^OK {3}runtime: unknown \(source checkout\?\)$/), r.stdout);
     assert.ok(r.has(new RegExp(`^OK {3}plugin root: .*plugins[/\\\\]adhd-unslop$`)), r.stdout);
     assert.ok(r.has(new RegExp(`^OK {3}adhd-unslop version ${versionOf(path.join(plugins, "adhd-unslop")).replace(/\./g, "\\.")}$`)));
@@ -223,12 +223,15 @@ describe("doctor Codex features", () => {
     assert.equal(r.status, 0);
     assert.equal(r.warns.length, 1, r.stdout);
     assert.match(fixFor(r, /^WARN Codex hooks are off/), /hooks = true/);
+    const i = r.lines.findIndex((l) => /^WARN Codex hooks are off/.test(l));
+    assert.equal(r.lines[i + 2], "     then: start a new Codex session");
     assert.ok(r.has(/^OK {3}.*defines 3 SessionStart handlers/), r.stdout);
   });
 
   for (const [label, toml] of [
     ["no spaces and a comment", "model = 'x'\n[features]\njs_repl = false\nhooks=false # off\n"],
     ["a dotted key at the top level", "features.hooks = false\n[other]\nx = 1\n"],
+    ["an inline table", "features = { js_repl = true, hooks = false }\n"],
   ]) {
     test(`hooks = false with ${label} is a WARN`, () => {
       assert.equal(withConfig(toml).warns.length, 1);
@@ -268,7 +271,7 @@ describe("doctor name clash in ~/.agents/skills", () => {
     const r = runDoctor(dirs);
     assert.equal(r.status, 0);
     assert.equal(r.warns.length, 1, r.stdout);
-    assert.equal(fixFor(r, /exists\. It creates a duplicate adhd-unslop skill name in Codex/), `     fix: rm ${link}`);
+    assert.equal(fixFor(r, /exists\. It creates a duplicate adhd-unslop:adhd-unslop skill name in Codex/), `     fix: rm ${link}`);
   });
 
   test("a real adhd-unslop directory gets rm -r", () => {
@@ -282,6 +285,26 @@ describe("doctor name clash in ~/.agents/skills", () => {
     const dirs = tempDirs();
     const link = path.join(skillsIn(dirs), "my-skill");
     fs.symlinkSync(path.join(repo, "plugins", "adhd-unslop", "skills", "adhd-unslop"), link);
+    const r = runDoctor(dirs);
+    assert.equal(r.warns.length, 1, r.stdout);
+    assert.equal(fixFor(r, /links into an installed or checked-out adhd-unslop plugin\. It creates a duplicate adhd-unslop:adhd-unslop skill name/), `     fix: rm ${link}`);
+  });
+
+  test("a link into an installed plugin cache is a WARN naming the duplicated skill", () => {
+    const dirs = tempDirs();
+    const cache = path.join(dirs.codex, "plugins", "cache", "adhd-unslop");
+    copyPlugins(cache, ["au-unslop"]);
+    const link = path.join(skillsIn(dirs), "unslop-link");
+    fs.symlinkSync(path.join(cache, "au-unslop", "skills", "unslop"), link);
+    const r = runDoctor(dirs);
+    assert.equal(r.warns.length, 1, r.stdout);
+    assert.equal(fixFor(r, /links into an installed or checked-out au-unslop plugin\. It creates a duplicate au-unslop:unslop skill name/), `     fix: rm ${link}`);
+  });
+
+  test("a link into a marketplace checkout outside any plugin still warns", () => {
+    const dirs = tempDirs();
+    const link = path.join(skillsIn(dirs), "repo-link");
+    fs.symlinkSync(path.join(repo, "design"), link);
     const r = runDoctor(dirs);
     assert.equal(r.warns.length, 1, r.stdout);
     assert.equal(fixFor(r, /links into a copy of the adhd-unslop repo/), `     fix: rm ${link}`);

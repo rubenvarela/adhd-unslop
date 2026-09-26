@@ -66,9 +66,10 @@ export function upstreamBlock(name, pins) {
   return begin + endsWithNewline(stripFrontmatter(read("upstream", name, "SKILL.md"))) + end;
 }
 
-// True when upstream frontmatter sets disable-model-invocation: true.
+// True when upstream frontmatter sets disable-model-invocation: true. Accepts
+// CRLF, since upstream files are kept byte for byte.
 export function userOnly(skillText) {
-  const m = skillText.match(/^---\n([\s\S]*?)\n---\n/);
+  const m = skillText.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
   return Boolean(m && /^disable-model-invocation:\s*true\s*$/m.test(m[1]));
 }
 
@@ -82,14 +83,19 @@ export function openaiYaml({ displayName, shortDescription, defaultPrompt, allow
 // Template syntax, one directive per line:
 //   {{include <path under src/<plugin>/>}}  inserts that file
 //   {{upstream <name>}}                     inserts the pinned upstream block
+// Any other line that starts with {{ fails the build, so a typo never ships.
+const DIRECTIVE = /^\{\{(include|upstream) ([^{}]+)\}\}\r?$/;
+
 export function templateUpstreams(text) {
-  return [...text.matchAll(/^\{\{upstream (.+)\}\}$/gm)].map((m) => m[1]);
+  return text.split("\n").map((line) => line.match(DIRECTIVE)).filter((m) => m && m[1] === "upstream").map((m) => m[2]);
 }
 
 export function renderTemplate(pluginName, text, pins = loadPins()) {
   return text
     .split("\n")
-    .map((line) => {
+    .map((raw) => {
+      const line = raw.replace(/\r$/, "");
+      if (line.startsWith("{{") && !DIRECTIVE.test(line)) throw new Error(`${pluginName}: unknown template line: ${line}`);
       const inc = line.match(/^\{\{include (.+)\}\}$/);
       if (inc) return read("src", pluginName, inc[1]).replace(/\n$/, "");
       const up = line.match(/^\{\{upstream (.+)\}\}$/);
@@ -333,12 +339,13 @@ export function expectedFiles() {
   return files;
 }
 
-// Files under a generated folder that the build would not write.
-export function strayFiles(expected = expectedFiles()) {
+// Files under a generated folder that the build would not write. `root` lets
+// tests run against a copy instead of the working tree.
+export function strayFiles(expected = expectedFiles(), root = repo) {
   const strays = [];
   for (const top of GENERATED_ROOTS) {
-    for (const abs of walk(path.join(repo, top))) {
-      const rel = path.relative(repo, abs).split(path.sep).join("/");
+    for (const abs of walk(path.join(root, top))) {
+      const rel = path.relative(root, abs).split(path.sep).join("/");
       if (!expected.has(rel)) strays.push(rel);
     }
   }
@@ -371,10 +378,10 @@ function removeEmptyDirs(dir) {
   if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
 }
 
-export function prune(expected = expectedFiles()) {
-  const strays = strayFiles(expected);
-  for (const rel of strays) fs.rmSync(path.join(repo, rel));
-  for (const top of GENERATED_ROOTS) removeEmptyDirs(path.join(repo, top));
+export function prune(expected = expectedFiles(), root = repo) {
+  const strays = strayFiles(expected, root);
+  for (const rel of strays) fs.rmSync(path.join(root, rel));
+  for (const top of GENERATED_ROOTS) removeEmptyDirs(path.join(root, top));
   return strays;
 }
 

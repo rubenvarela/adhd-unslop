@@ -27,7 +27,6 @@ jobs:
     env:
       DISABLE_AUTOUPDATER: "1"
     outputs:
-      outcome: ${{ steps.load.outcome }}
       claude: ${{ steps.versions.outputs.claude }}
       codex: ${{ steps.versions.outputs.codex }}
       report: ${{ steps.report.outputs.report }}
@@ -154,9 +153,11 @@ jobs:
           CLAUDE: ${{ needs.drift.outputs.claude }}
           CODEX: ${{ needs.drift.outputs.codex }}
         run: |
-          case "$CLAUDE$CODEX" in
-            *[!0-9.]*|"") echo "unexpected version strings: '$CLAUDE' '$CODEX'"; exit 1 ;;
-          esac
+          for v in "$CLAUDE" "$CODEX"; do
+            case "$v" in
+              ""|*[!0-9.]*) echo "unexpected version strings: '$CLAUDE' '$CODEX'"; exit 1 ;;
+            esac
+          done
           printf '{\n  "claude-code": "%s",\n  "codex": "%s"\n}\n' "$CLAUDE" "$CODEX" > tools/cli-versions.json
           git diff --stat
 

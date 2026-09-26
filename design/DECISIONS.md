@@ -464,9 +464,11 @@ working tree. With `E2E_REPO` and `E2E_REF` it installs from GitHub.
 http-backend` and checks the upgrade in both runtimes.
 
 - Why a git source for real paths: `claude plugin install` from a local
-  directory reports that the plugin loads in place from that directory.
-  Claude Code takes `owner/repo#ref`, Codex takes `owner/repo --ref <ref>`,
-  and Claude Code rejects `file://` URLs.
+  directory writes a cache copy but reports that the plugin loads in place
+  from that directory, so a local run may read the source instead of the
+  cache. A git source takes the same path as a user's install. Claude Code
+  takes `owner/repo#ref`, Codex takes `owner/repo --ref <ref>`, and Claude
+  Code rejects `file://` URLs.
 - The model's working directory sits away from the marketplace copy, and
   the homes are deleted on exit. Stray copies on disk caused two false
   passes.
@@ -538,7 +540,7 @@ or when `cli-drift.yml` fails.
 | Marketplace entry `version` | Ignored when `plugin.json` has one; `--strict` fails on a mismatch | Not used |
 | Config-only install | Not tested | `[plugins."x@mkt"] enabled = true` does nothing alone, but `codex plugin marketplace upgrade` then installs it from a git marketplace |
 | Plugin cache | `~/.claude/plugins/cache/<mkt>/<plugin>/<version>/`; old versions stay | `$CODEX_HOME/plugins/cache/<mkt>/<plugin>/<version>/`; only the installed version |
-| Local directory marketplace | Reports that the plugin loads in place from the directory | Copies into the cache |
+| Local directory marketplace | `install` writes a cache copy, which `installPath` names, and reports that the plugin loads in place from the source directory, so edits there show at the next session | Copies into the cache |
 | Git marketplace copy | Cloned by `marketplace add` | Cloned in full to `$CODEX_HOME/.tmp/marketplaces/<name>/` |
 | Hook environment | `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, never `PLUGIN_ROOT` | `PLUGIN_ROOT`, `PLUGIN_DATA`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CODEX_HOME` |
 | SessionStart payload | `session_id`, `transcript_path`, `source` | `session_id`, `transcript_path`, `source` |
