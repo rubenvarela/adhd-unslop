@@ -56,6 +56,15 @@ claude plugin update au-i-have-adhd@adhd-unslop
 claude plugin update au-unslop@adhd-unslop
 ```
 
+Installed `adhd-unslop` 0.1.0 before the split? `claude plugin update` moves
+it to 0.2.0 but does not install the new dependencies, and `claude plugin
+list` then shows a dependency error. Install both by name:
+
+```bash
+claude plugin install au-i-have-adhd@adhd-unslop
+claude plugin install au-unslop@adhd-unslop
+```
+
 ### Codex
 
 Codex has no plugin dependencies, so install all three:

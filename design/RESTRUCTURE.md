@@ -15,6 +15,11 @@ in `PLAN.md`.
   context, because `codex exec` does not print hook system messages.
 - The load step tells Codex to read only the path in its skills list. In one
   test the model searched the disk and read a stale copy.
+- Upgrading an install from 0.1.0 does not bring the new dependencies.
+  `claude plugin update` moved `adhd-unslop` to 0.2.0 and left both `au-`
+  plugins uninstalled. Running `claude plugin install adhd-unslop` again added
+  one missing dependency per run. The README tells users to install both by
+  name.
 
 ## Goal
 
