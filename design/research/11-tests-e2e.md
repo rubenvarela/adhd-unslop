@@ -270,3 +270,19 @@ Notes on the final Codex runs:
   resolved module URL. This checkout is reached through the symlink
   `~/Development`, so the gate never tripped until `run.sh` switched to the
   physical path (`pwd -P`).
+
+## A flaky check with the mirrors installed
+
+Date: 2026-09-26, GitHub mode (`E2E_REPO=rubenvarela/adhd-unslop`,
+`E2E_REF=structure-review`), Codex 0.154.0 on `gpt-5.6-luna` at `low`.
+
+One Codex run failed "with the mirrors, the unprompted question loads no
+adhd-unslop or au-i-have-adhd skill". In that run the model loaded
+`au-unslop:unslop`, which its upstream frontmatter allows, and then listed
+the plugin cache. The check searched the whole log for the other skills'
+paths, so a directory listing that named them counted as a load. The next
+run passed with no listing.
+
+The check now counts only real loads: a skill injected into the rollout, or
+a command that reads the file (`cat`, `sed`, `head`, and similar). Two later
+runs in GitHub mode passed 22 of 22.

@@ -437,8 +437,16 @@ run_codex() {
   model_step 'codex: unprompted question with the mirrors' || return
   cxe "$log" -o "$work/codex-unprompted-mirrors.txt" 'What is 17 times 3? Digits only.'
   expect "codex: unprompted question with the mirrors answers" '^51' "$work/codex-unprompted-mirrors.txt"
-  refuse "codex: with the mirrors, the unprompted question loads no adhd-unslop or au-i-have-adhd skill" \
-    'cache/adhd-unslop/(adhd-unslop|au-i-have-adhd)/[^ ]*SKILL\.md' "$log"
+  # A load is an injected skill in the rollout, or a command that reads the
+  # file. A directory listing that merely names a path is not a load; the
+  # small model sometimes lists the plugin cache after loading au-unslop.
+  sid=$(codex_session "$log")
+  rollout=$(codex_rollout "$sid")
+  [ -n "$rollout" ] && cp "$rollout" "$work/codex-unprompted-mirrors.rollout.jsonl"
+  refuse "codex: with the mirrors, the unprompted question injects no adhd-unslop or au-i-have-adhd skill" \
+    '<name>(adhd-unslop|au-i-have-adhd):' "$rollout"
+  refuse "codex: with the mirrors, the unprompted question reads no adhd-unslop or au-i-have-adhd SKILL.md" \
+    '(cat|sed|head|tail|nl|less|more|awk|Get-Content)[^|;&]*cache/adhd-unslop/(adhd-unslop|au-i-have-adhd)/[^ ]*SKILL\.md' "$log"
   info "codex: with the mirrors, the unprompted question auto-loads au-unslop:unslop" \
     grep -Eo 'au-unslop/[^ ]*/SKILL\.md' "$log"
 
