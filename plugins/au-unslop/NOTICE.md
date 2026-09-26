@@ -1,7 +1,7 @@
 # Notice
 
 This plugin ships a copy of `plugins/pstack/skills/unslop/SKILL.md` from
-https://github.com/michael-denyer/pstack-claude at commit 458050195fdb347955a63812e6d749f164a8f62d.
+https://github.com/michael-denyer/pstack-claude at commit 4a3ef20bba5b49c3d137c07809227a8b2b568f32.
 
 The body of `SKILL.md` is unchanged. The frontmatter differs from upstream
 in two ways. The description is replaced, and `disable-model-invocation` is
