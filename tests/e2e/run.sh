@@ -10,6 +10,11 @@
 #   tests/e2e/run.sh            run both runtimes
 #   tests/e2e/run.sh claude     run one runtime
 #   tests/e2e/run.sh codex
+#
+# By default the marketplace is a copy of the working tree. To install from
+# GitHub instead, which exercises the real clone and cache paths:
+#
+#   E2E_REPO=rubenvarela/adhd-unslop E2E_REF=main tests/e2e/run.sh
 
 set -u
 repo=$(cd "$(dirname "$0")/../.." && pwd)
@@ -28,19 +33,28 @@ result() { if [ "$2" = ok ]; then echo "PASS  $1"; pass=$((pass + 1)); else echo
 expect() { local name=$1 pattern=$2 file=$3; if grep -Eq -- "$pattern" "$file"; then result "$name" ok; else result "$name" no; echo "      expected /$pattern/ in $file"; fi; }
 refuse() { local name=$1 pattern=$2 file=$3; if grep -Eq -- "$pattern" "$file"; then result "$name" no; echo "      unexpected /$pattern/ in $file"; else result "$name" ok; fi; }
 
-# Copy the working tree, minus ignored files, into a fresh git repo.
-mkt="$work/mkt"
-mkdir -p "$mkt"
-(cd "$repo" && git ls-files -co --exclude-standard -z | xargs -0 tar cf -) | (cd "$mkt" && tar xf -)
-(cd "$mkt" && git init -q && git add -A && git -c user.name=e2e -c user.email=e2e@example.invalid commit -qm e2e)
-echo "marketplace copy: $mkt"
+if [ -n "${E2E_REPO:-}" ]; then
+  ref=${E2E_REF:-main}
+  claude_source="$E2E_REPO#$ref"
+  codex_source=("$E2E_REPO" --ref "$ref")
+  echo "marketplace: $E2E_REPO at $ref"
+else
+  # Copy the working tree, minus ignored files, into a fresh git repo.
+  mkt="$work/mkt"
+  mkdir -p "$mkt"
+  (cd "$repo" && git ls-files -co --exclude-standard -z | xargs -0 tar cf -) | (cd "$mkt" && tar xf -)
+  (cd "$mkt" && git init -q && git add -A && git -c user.name=e2e -c user.email=e2e@example.invalid commit -qm e2e)
+  claude_source=$mkt
+  codex_source=("$mkt")
+  echo "marketplace copy: $mkt"
+fi
 echo "logs: $work"
 
 run_claude() {
   export CLAUDE_CONFIG_DIR="$work/claude"
   mkdir -p "$CLAUDE_CONFIG_DIR"
   local log="$work/claude-install.log"
-  claude plugin marketplace add "$mkt" >"$log" 2>&1
+  claude plugin marketplace add "$claude_source" >"$log" 2>&1
   claude plugin install adhd-unslop@adhd-unslop >>"$log" 2>&1
   claude plugin list >>"$log" 2>&1
   expect "claude: install brings both dependencies" "\+ 2 dependencies" "$log"
@@ -67,7 +81,7 @@ run_codex() {
   mkdir -p "$home/.codex"
   cp "$HOME/.codex/auth.json" "$home/.codex/auth.json"
   local log="$work/codex-install.log"
-  HOME=$home CODEX_HOME=$home/.codex codex plugin marketplace add "$mkt" </dev/null >"$log" 2>&1
+  HOME=$home CODEX_HOME=$home/.codex codex plugin marketplace add "${codex_source[@]}" </dev/null >"$log" 2>&1
   HOME=$home CODEX_HOME=$home/.codex codex plugin add adhd-unslop@adhd-unslop </dev/null >>"$log" 2>&1
   cx() { (cd "$cwd" && HOME=$home CODEX_HOME=$home/.codex codex exec --skip-git-repo-check -s read-only "$@" </dev/null 2>&1); }
 
