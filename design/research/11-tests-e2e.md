@@ -160,3 +160,61 @@ Case B in detail:
 - Not tested: automatic compaction, the interactive TUI, the skill loaded
   through the Skill tool instead of typed, and several invoked skills
   sharing the 25,000-token total.
+
+## Always-on through compaction
+
+Date: 2026-09-26. Claude Code 2.1.283, Codex 0.154.0 and 0.157.1, revision
+5 build. `tests/e2e/run.sh` now requires exactly one complete bundle after a
+compaction: all three END lines with the tree's bundle id, each once, in the
+context that follows the compaction. Research 09 found the same with fixture
+chunks. These checks use the real plugin.
+
+### Method
+
+- Claude Code, flag file on. `tests/e2e/claude-turns.mjs` keeps one `claude
+  -p --input-format stream-json` process open and sends `Reply with the
+  single word OK.`, then `/compact`. `inspect.mjs bundle ... after-compact`
+  counts the SessionStart attachments after the last `compact_boundary`
+  record of the transcript.
+- Codex, flag file on. `codex exec` cannot compact on request, and
+  auto-compaction depends on how much the model reads or prints, so the
+  test uses `codex app-server` instead. `tests/e2e/codex-thread.mjs` starts
+  a thread and sends a turn, then `thread/compact/start`, which is what the
+  TUI's `/compact` sends, then one more turn. Codex fires the queued
+  `compact` source at the start of that turn (research 09). App-server has
+  no bypass flag, so the script first records trust for the hooks with
+  `codex-hooks.mjs trust`. The count covers the `replacement_history` of the
+  last `compacted` rollout record plus the developer messages after it.
+- The driver waits for each step to finish: the thread going active and
+  then idle, `thread/compacted`, or `turn/completed` for the turn it
+  started. Codex can send the compaction turn's `turn/completed` late,
+  after the next `turn/start`, so a `turn/completed` for another turn id
+  does not count. An earlier draft of the driver counted it, stopped
+  early, and aborted the last turn.
+
+### Results
+
+Claude Code: the check passed. The whole transcript holds two copies, one
+from `startup` and one from `compact`. After the boundary it holds exactly
+one of each chunk. The compaction went from 24,980 to 7,930 tokens.
+
+Codex: not measured yet. The ChatGPT workspace behind the copied
+`auth.json` ran out of credits during this work, so every model turn failed
+with "Your workspace is out of credits" (`usageLimitExceeded`). The Codex
+check stays a required PASS or FAIL line and is ready to run.
+
+- Before the credits ran out, one 0.157.1 run reached the compaction
+  through app-server. The rollout got a `compacted` record whose
+  `replacement_history` held the user message and one compaction item. The
+  driver then stopped early, the bug described above, so the bundle count
+  after the compaction was not taken. The same step on 0.154.0 failed
+  inside the remote compact task with the credits error.
+- With no credits, both the compaction step and the count after it fail on
+  0.154.0 and 0.157.1.
+- Checks that read only the rollout still pass without a model answer,
+  because Codex records the injected skill and the hook output before it
+  samples: skill arrival, the startup bundle, the resume bundle, and the
+  migrate bundle without the bypass flag. The "answers" checks and the
+  typed mirror checks fail. The "reads no skill" checks pass but prove
+  nothing without an answer, which the failing "answers" check beside each
+  one shows.

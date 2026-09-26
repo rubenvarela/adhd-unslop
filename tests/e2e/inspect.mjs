@@ -1,14 +1,17 @@
 // Parsers for tests/e2e/run.sh. Each subcommand reads one log or transcript
 // and prints what it found. Assertion subcommands exit 1 on failure.
 //
-//   bundle <claude|codex> <file> <bundle-id> <exact|atleast|none>
+//   bundle <claude|codex> <file> <bundle-id> <exact|atleast|none> [after-compact]
 //     Counts each chunk's END line in the context records only: SessionStart
 //     attachments in a Claude Code transcript (attachment.content), developer
 //     messages in a Codex rollout. A Claude record also repeats the text in
 //     stdout and rendered, so a plain grep would count every copy three times.
 //     exact: each chunk once with <bundle-id>, and no END line from another
 //     bundle. atleast: each chunk at least once with <bundle-id>. none: no END
-//     line at all.
+//     line at all. after-compact counts only the context after the last
+//     compaction: Claude Code records after the last compact_boundary, and
+//     for Codex the replacement_history of the last compacted record plus
+//     the developer messages after it. It fails when nothing was compacted.
 //   skill-arrived <claude|codex> <file> <SKILL.md> <final-line> [whole]
 //     One context record holds the skill text: the Claude Code skill message
 //     or tool result in a transcript, the injected skill message in a Codex
@@ -57,25 +60,39 @@ function texts(value) {
   return [];
 }
 
-function contextTexts(kind, file) {
-  const records = jsonLines(file);
+function contextTexts(kind, file, scope) {
+  let records = jsonLines(file);
+  const afterCompact = scope === "after-compact";
   if (kind === "claude") {
+    if (afterCompact) {
+      const last = records.findLastIndex((r) => r.type === "system" && r.subtype === "compact_boundary");
+      if (last < 0) throw new Error("no compact_boundary in the transcript");
+      records = records.slice(last + 1);
+    }
     return records
       .filter((r) => r.type === "attachment" && r.attachment?.hookEvent === "SessionStart")
       .map((r) => texts(r.attachment.content).join("\n"));
   }
   if (kind === "codex") {
-    return records
-      .filter((r) => r.type === "response_item" && r.payload?.type === "message" && r.payload?.role === "developer")
-      .map((r) => texts(r.payload.content).join("\n"));
+    const developer = (item) => item?.type === "message" && item?.role === "developer";
+    let kept = [];
+    if (afterCompact) {
+      const last = records.findLastIndex((r) => r.type === "compacted");
+      if (last < 0) throw new Error("no compacted record in the rollout");
+      kept = (records[last].payload?.replacement_history ?? []).filter(developer).map((i) => texts(i.content).join("\n"));
+      records = records.slice(last + 1);
+    }
+    return kept.concat(
+      records.filter((r) => r.type === "response_item" && developer(r.payload)).map((r) => texts(r.payload.content).join("\n")),
+    );
   }
   throw new Error(`unknown runtime ${kind}`);
 }
 
-function bundle(kind, file, id, mode) {
+function bundle(kind, file, id, mode, scope) {
   const counts = { 1: 0, 2: 0, 3: 0 };
   const others = [];
-  for (const text of contextTexts(kind, file)) {
+  for (const text of contextTexts(kind, file, scope)) {
     for (const m of text.matchAll(END)) {
       if (m[2] === id && counts[m[1]] !== undefined) counts[m[1]]++;
       else others.push(`chunk ${m[1]} (${m[2]})`);
@@ -224,7 +241,7 @@ function hooksTrusted(file, pluginId, version, keys) {
 
 const [cmd, ...args] = process.argv.slice(2);
 const commands = {
-  bundle: () => bundle(args[0], args[1], args[2], args[3]),
+  bundle: () => bundle(args[0], args[1], args[2], args[3], args[4]),
   "skill-arrived": () => skillArrived(args[0], args[1], args[2], args[3], args[4]),
   compacted: () => compacted(args[0], args[1], args[2]),
   "no-skill": () => noSkill(args[0]),

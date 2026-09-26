@@ -132,6 +132,7 @@ only_entries() {
   echo "$dir holds: ${got:-nothing}; expected: $want"
   return 1
 }
+exit_ok() { [ "$1" -eq 0 ] && return 0; cat "$2"; return 1; }
 keys_for() { local plugin=$1 k out=; shift; for k in "$@"; do out="$out $plugin:hooks/hooks.json:session_start:$k"; done; echo "$out"; }
 
 # Tree helpers.
@@ -279,7 +280,7 @@ run_claude() {
   check "claude: unprompted question loads no skill" inspect no-skill "$log"
 
   # Platform behavior, recorded as INFO: what an invoked skill keeps after
-  # compaction. The skill is larger than the 5,000-token re-attach budget.
+  # compaction. The skill is larger than the 20,000-character re-attach budget.
   log=$work/claude-compact-same.log
   clturns "$log" '/adhd-unslop:adhd-unslop Reply with the single word READY.' '/compact'
   transcript=$(claude_transcript "$(claude_session "$log")")
@@ -322,6 +323,15 @@ run_claude() {
   expect "claude: resume fires SessionStart with source resume" '"hook_name":"SessionStart:resume"' "$log"
   [ -n "$transcript" ] && cp "$transcript" "$work/claude-resume.transcript.jsonl"
   check "claude: resumed transcript holds exactly one copy of each chunk" inspect bundle claude "$transcript" "$bundle" exact
+
+  # Always-on through compaction: /compact in the same process.
+  log=$work/claude-compact-always-on.log
+  clturns "$log" 'Reply with the single word OK.' '/compact'
+  transcript=$(claude_transcript "$(claude_session "$log")")
+  [ -n "$transcript" ] && cp "$transcript" "$work/claude-compact-always-on.transcript.jsonl"
+  expect "claude: /compact fires SessionStart with source compact" '"hook_name":"SessionStart:compact"' "$log"
+  check "claude: after /compact, the context holds exactly one complete bundle" \
+    inspect bundle claude "$transcript" "$bundle" exact after-compact
 }
 
 run_codex() {
@@ -399,6 +409,24 @@ run_codex() {
   check "codex: exec resume --last continues the same session" same_codex_session "$log" "$sid" "$rollout" 'Reply with the single word AGAIN.'
   [ -n "$rollout" ] && cp "$rollout" "$work/codex-resume.rollout.jsonl"
   check "codex: resumed rollout holds at least one copy of each chunk" inspect bundle codex "$rollout" "$bundle" atleast
+
+  # Always-on through compaction. codex exec cannot compact on request, so
+  # app-server runs a turn, thread/compact/start (what the TUI's /compact
+  # sends), and one more turn, which fires the queued compact source.
+  # App-server has no bypass flag, so the hooks need recorded trust.
+  local rc out
+  codex_hooks trust adhd-unslop@adhd-unslop >>"$work/codex-install.log" 2>&1
+  log=$work/codex-compact.log
+  out=$(cx_env node "$here/codex-thread.mjs" "$codex_bin" "$cwd" "$log" \
+    'turn:Reply with the single word OK.' compact 'turn:Reply with the single word AGAIN.' 2>&1)
+  rc=$?
+  printf '%s\n' "$out" >"$work/codex-compact.out"
+  rollout=$(sed -n 's/^rollout //p' "$work/codex-compact.out")
+  [ -n "$rollout" ] || rollout=$(codex_rollout "$(sed -n 's/^thread //p' "$work/codex-compact.out")")
+  [ -n "$rollout" ] && cp "$rollout" "$work/codex-compact.rollout.jsonl"
+  check "codex: app-server runs a turn, a compaction, and another turn" exit_ok "$rc" "$work/codex-compact.out"
+  check "codex: after thread compaction, the context holds exactly one complete bundle" \
+    inspect bundle codex "$rollout" "$bundle" exact after-compact
 }
 
 # A local git marketplace whose main branch starts at 0.2.2 and moves to the
