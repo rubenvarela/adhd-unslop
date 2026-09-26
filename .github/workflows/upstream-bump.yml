@@ -5,11 +5,7 @@ on:
     - cron: "41 6 * * *"
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  actions: write
+permissions: {}
 
 concurrency:
   group: upstream-bump
@@ -17,16 +13,50 @@ concurrency:
 
 jobs:
   bump:
+    name: Bump upstream skills
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the upstream-bump branch
+      pull-requests: write # open or update the bump PR
+      issues: write # open or comment on the failure issue
+      actions: write # dispatch verify.yml on the PR branch
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      # create-pull-request sets up its own git credentials from its token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+
+      # Refetches every pinned file at its pinned commit and compares hashes.
+      # A mismatch skips the bump and opens the issue with the mismatch.
+      - name: Verify the pins against upstream
+        id: verify
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if node tools/sync.mjs --verify-remote > "$RUNNER_TEMP/verify.log" 2>&1; then
+            cat "$RUNNER_TEMP/verify.log"
+          else
+            cat "$RUNNER_TEMP/verify.log"
+            {
+              echo "# Pinned upstream files do not match upstream"
+              echo
+              echo "\`sync.mjs --verify-remote\` refetched each pinned file at its pinned commit. These files differ from the sha256 in \`tools/upstream.json\`, so the bump did not run."
+              echo
+              echo '```'
+              cat "$RUNNER_TEMP/verify.log"
+              echo '```'
+            } > "$RUNNER_TEMP/report.md"
+            exit 1
+          fi
 
       # Exits 1 when a bump fails its checks. Successful bumps are kept either way.
       - name: Check upstreams and bump
         id: sync
+        if: steps.verify.outcome == 'success'
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -34,7 +64,8 @@ jobs:
 
       - name: Open or update the bump PR
         id: pr
-        uses: peter-evans/create-pull-request@v8
+        if: steps.verify.outcome == 'success'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           branch: upstream-bump
           delete-branch: true
@@ -55,10 +86,10 @@ jobs:
         if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run daily-build.yml --ref upstream-bump
+        run: gh workflow run verify.yml --ref upstream-bump
 
       - name: Open an issue for a failed bump
-        if: steps.sync.outcome == 'failure'
+        if: steps.verify.outcome == 'failure' || steps.sync.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

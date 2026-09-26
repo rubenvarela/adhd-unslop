@@ -33,6 +33,9 @@ they are doing and that their patterns are stable.
 | `06-official-docs.md` | What the Claude Code and Codex docs recommend | code.claude.com, learn.chatgpt.com, developers.openai.com |
 | `07-tests-codex.md` | Real-CLI tests of Codex claims | fixtures in throwaway homes |
 | `08-tests-claude.md` | Real-CLI tests of Claude Code claims | fixtures in throwaway homes |
+| `09-tests-clear-compact.md` | `clear` and `compact` in both runtimes | fixtures, TUI driving |
+| `10-tests-hook-env.md` | Hook environment and payload per runtime | fixture plugin |
+| `11-tests-e2e.md` | End to end on the first 0.3.0 build | `tests/e2e/run.sh` |
 
 ## Insights
 
@@ -127,7 +130,20 @@ they are doing and that their patterns are stable.
 - The Claude Code docs say not to set `version` in both `plugin.json` and
   the marketplace entry. We set both, kept equal.
 
-## How the insights map to the proposal
+## How the insights map to the result
 
-`design/STRUCTURE-v2.md` lists each decision with the insight above that
-drives it, the test that confirmed it, and what was rejected.
+| Insight | Outcome in 0.3.0 | Decision |
+| --- | --- | --- |
+| No repo uses plugin `dependencies`; copy plus drift check is the norm | `adhd-unslop` embeds its own copies; no dependencies | D4 |
+| Mirrors are simpler when nothing loads them | Vendored `SKILL.md` byte for byte | D7 |
+| Skills can read files next to them, but end-to-end runs showed the reads are denied or skipped (`11`) | The skill embeds the texts and reads nothing | D9 |
+| The build could not add a plugin and missed strays | Generic build from `src/`, stray check, `--prune` | D10, D11 |
+| Documented manifest minimum | No entry `version`, explicit Codex `hooks`, `products` kept | D22 |
+| Resume duplicates in both runtimes; Codex can also lose the copy | Launcher skips `resume` in Claude Code only | D23 |
+| Codex hashes every handler field for trust | Chunk handlers frozen by a test | D24 |
+| Output styles force themselves; mode trackers need a per-prompt hook | Both rejected | D25 |
+| Doctors are common | `adhd-unslop:doctor` | D26 |
+| Keyless loads work in both CLIs | `load-check.mjs` in `verify.yml` with pinned CLIs | D27 |
+| Pinned plus drift is the proven CLI model | `cli-drift.yml` | D28 |
+| SHA pins, Dependabot, actionlint, zizmor | Workflow hygiene | D29 |
+| Version bumps were not enforced | `version-gate.mjs` | D17 |

@@ -1,7 +1,7 @@
 {
   "name": "au-i-have-adhd",
-  "version": "0.1.0",
-  "description": "Pinned copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
+  "version": "0.2.0",
+  "description": "Pinned, unchanged copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
   "author": {
     "name": "Rubén Varela"
   },
@@ -15,7 +15,7 @@
   "interface": {
     "displayName": "i-have-adhd (pinned)",
     "shortDescription": "Replies shaped for a reader with ADHD",
-    "longDescription": "A pinned copy of ayghri/i-have-adhd, used by adhd-unslop. The skill body is unchanged from upstream.",
+    "longDescription": "A pinned, unchanged copy of ayghri/i-have-adhd. Invoke it with $au-i-have-adhd:i-have-adhd.",
     "developerName": "Rubén Varela",
     "category": "Productivity",
     "capabilities": [

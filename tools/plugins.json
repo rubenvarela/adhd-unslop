@@ -10,16 +10,17 @@
   "author": {
     "name": "Rubén Varela"
   },
+  "homepage": "https://github.com/rubenvarela/adhd-unslop",
+  "repository": "https://github.com/rubenvarela/adhd-unslop",
   "plugins": [
     {
       "name": "au-i-have-adhd",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "kind": "vendored",
       "upstream": "i-have-adhd",
       "skill": "i-have-adhd",
       "category": "productivity",
-      "description": "Pinned copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
-      "skillDescription": "Shape replies for a reader with ADHD. Load only when the user invokes it (/au-i-have-adhd:i-have-adhd in Claude Code, $au-i-have-adhd:i-have-adhd in Codex) or another skill, such as adhd-unslop, tells you to.",
+      "description": "Pinned, unchanged copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
       "keywords": [
         "adhd",
         "output-style",
@@ -28,7 +29,7 @@
       "codexInterface": {
         "displayName": "i-have-adhd (pinned)",
         "shortDescription": "Replies shaped for a reader with ADHD",
-        "longDescription": "A pinned copy of ayghri/i-have-adhd, used by adhd-unslop. The skill body is unchanged from upstream.",
+        "longDescription": "A pinned, unchanged copy of ayghri/i-have-adhd. Invoke it with $au-i-have-adhd:i-have-adhd.",
         "capabilities": [
           "Instructions"
         ]
@@ -36,13 +37,12 @@
     },
     {
       "name": "au-unslop",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "kind": "vendored",
       "upstream": "unslop",
       "skill": "unslop",
       "category": "productivity",
-      "description": "Pinned copy of the unslop skill from pstack-claude by Michael Denyer (github.com/michael-denyer/pstack-claude). Removes AI patterns from writing.",
-      "skillDescription": "Remove AI patterns from writing. Load only when the user invokes it (/au-unslop:unslop in Claude Code, $au-unslop:unslop in Codex) or another skill, such as adhd-unslop, tells you to.",
+      "description": "Pinned, unchanged copy of the unslop skill from pstack-claude by Michael Denyer (github.com/michael-denyer/pstack-claude). Removes AI patterns from writing.",
       "keywords": [
         "unslop",
         "writing",
@@ -51,7 +51,7 @@
       "codexInterface": {
         "displayName": "unslop (pinned)",
         "shortDescription": "Removes AI patterns from writing",
-        "longDescription": "A pinned copy of the unslop skill from michael-denyer/pstack-claude, used by adhd-unslop. The skill body is unchanged from upstream.",
+        "longDescription": "A pinned, unchanged copy of the unslop skill from michael-denyer/pstack-claude.",
         "capabilities": [
           "Instructions"
         ]
@@ -59,12 +59,8 @@
     },
     {
       "name": "adhd-unslop",
-      "version": "0.2.2",
-      "kind": "composed",
-      "embeds": [
-        "i-have-adhd",
-        "unslop"
-      ],
+      "version": "0.3.0",
+      "kind": "authored",
       "category": "productivity",
       "description": "i-have-adhd and unslop in one skill with a defined tie-breaker: ADHD shape wins in direct replies, unslop wins everywhere else.",
       "marketplaceDescription": "ADHD-friendly replies plus unslopped writing, with a defined tie-breaker.",
@@ -88,9 +84,40 @@
         ],
         "brandColor": "#2563EB"
       },
-      "dependencies": [
-        "au-i-have-adhd",
-        "au-unslop"
+      "skills": {
+        "adhd-unslop": {
+          "upstreams": [
+            "i-have-adhd",
+            "unslop"
+          ]
+        },
+        "doctor": {}
+      },
+      "alwaysOn": [
+        [
+          {
+            "file": "overlay/00-intro.md"
+          },
+          {
+            "file": "overlay/10-precedence.md"
+          },
+          {
+            "file": "overlay/20-lifecycle.md"
+          }
+        ],
+        [
+          {
+            "upstream": "i-have-adhd"
+          }
+        ],
+        [
+          {
+            "upstream": "unslop"
+          },
+          {
+            "file": "overlay/90-final-check.md"
+          }
+        ]
       ]
     }
   ]

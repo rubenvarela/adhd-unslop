@@ -1,11 +1,15 @@
 # Structure v2 proposal
 
-Status: accepted 2026-09-26, revision 4. Codex adversarial review round 9
-returned CONSENSUS (`design/round-9-codex.md`) after REVISE verdicts in
-rounds 6 to 8. Research is in `design/research/`, summarized in
+Status: revision 5, 2026-09-26. Revision 4 reached CONSENSUS in Codex
+adversarial review round 9 (`design/round-9-codex.md`) after REVISE verdicts
+in rounds 6 to 8. End-to-end tests of the first implementation then showed
+that the skill's reference reads were unreliable, so revision 5 embeds the
+upstream texts instead. It goes to review round 10. See "Revision 5" at the
+end. Research is in `design/research/`, summarized in
 `design/research/00-synthesis.md`. Test results are in
 `design/research/07-tests-codex.md`, `08-tests-claude.md`,
-`09-tests-clear-compact.md`, and `10-tests-hook-env.md`. D1 to D21 refer to
+`09-tests-clear-compact.md`, `10-tests-hook-env.md`, and
+`11-tests-e2e.md`. D1 to D21 refer to
 `design/DECISIONS.md` as of `fc308bd`.
 
 ## Goals
@@ -24,9 +28,9 @@ The user set these goals:
 
 ## Summary of changes
 
-1. `adhd-unslop` becomes self-contained. Its skill reads both upstream texts
-   from generated files in its own `references/` folder. The Claude Code
-   `dependencies` field, the dependency-check hook, and
+1. `adhd-unslop` becomes self-contained. Its skill embeds both upstream
+   texts in its body, the same bytes the always-on hook delivers. The Claude
+   Code `dependencies` field, the dependency-check hook, and
    `hooks/dependencies.json` go away.
 2. `au-i-have-adhd` and `au-unslop` stay as optional standalone mirrors.
    Each ships the upstream `SKILL.md` byte for byte, frontmatter included.
@@ -58,54 +62,68 @@ balance.
   dependency per run (D16). Codex has no dependencies at all, so Codex users
   ran three install commands and relied on a warning hook.
 - The hook already carries its own copy of both texts (D12), so a skill that
-  also reads its own copy adds no new kind of duplication.
+  carries the same copy adds no new kind of duplication.
 
 What the user asked for still holds. The text comes only from our own pinned
 copies, never a third-party marketplace. i-have-adhd stays available as its
 own plugin. A new plugin reuses i-have-adhd by listing it, and the build
 copies the text in.
 
-Evidence that the mechanism works:
+The skill embeds the texts. Its body, after a one-line generated comment,
+is the always-on bundle byte for byte: the overlay sections, the
+i-have-adhd block, the unslop block, and the final check. It reads no files.
 
-- A skill that reads `references/extra.md` next to its `SKILL.md` read the
-  right file, not a decoy, in Codex 0.154.0 and 0.157.1 (`07` C2).
-- In Claude Code, `${CLAUDE_SKILL_DIR}` resolves to the versioned cache
-  path. A bare relative path also works, because every skill body starts
-  with its base directory (`08` L2).
-- Codex does not cut our skill. A 12,000-byte skill arrived whole on both
-  versions. Codex cuts at 8,000 bytes only for a plugin with a root
-  `plugin.json` that uses the agent-plugins `$schema` (`07` C1).
+- Revision 4 had the skill read the texts from `references/` files next to
+  it. End-to-end tests showed that failed in both runtimes (`11`). Claude
+  Code denied both reads in `-p` mode because the files sit outside the
+  working directory, and an interactive session would ask for permission
+  each time. Codex skipped the reads in 7 of 8 runs with a short prompt.
+  Rules that must always apply cannot depend on a permission rule or on the
+  model choosing to read a file.
+- `references/` is the progressive-disclosure pattern for optional detail.
+  These texts are the rules themselves, so they belong in the body. 0.1.0
+  embedded them the same way, and `design/BEHAVIOR.md` recorded that it
+  worked.
+- `allowed-tools: Read` in the frontmatter would let Claude Code read
+  without asking, but it would pre-approve every Read while the skill is
+  active and would do nothing for Codex. Rejected.
+- Size: about 21,800 bytes, about 5,500 tokens. Codex cuts skills at 8,000
+  bytes only for a plugin with a root `plugin.json` that uses the
+  agent-plugins `$schema`, and our plugins have none (`07` C1). The
+  end-to-end check confirms that the whole skill arrives in both runtimes
+  (`11`).
+- A user who invokes the skill while always-on already delivered the bundle
+  gets a second, identical copy. That costs tokens and changes nothing,
+  because the bundle rules treat a repeat as a repeat. The case is rare,
+  since always-on makes invoking unnecessary.
 
 Result: `claude plugin install adhd-unslop@adhd-unslop` or
 `codex plugin add adhd-unslop@adhd-unslop` installs everything. Updates touch
 one plugin.
 
-#### Reference contract
+#### Embedding contract
 
-- Path: `plugins/<plugin>/skills/<skill>/references/<upstream>.md`, one file
-  per upstream the skill lists.
-- Content: the same block the hook uses, byte for byte. That is the line
-  `<!-- BEGIN upstream <name> <repo>/<path> @<commit> -->`, then the
-  upstream `SKILL.md` with its frontmatter removed and a final newline
-  ensured, then `<!-- END upstream <name> -->`.
-- Tests compare each reference file with that block built from
-  `upstream/<name>/SKILL.md`, and require it to match the hook chunk that
-  carries the same upstream.
-- The skill tells Claude Code to read
-  `${CLAUDE_SKILL_DIR}/references/<upstream>.md` and Codex to read
-  `references/<upstream>.md` relative to its `SKILL.md`. It reads nothing
-  else and never searches the disk.
-- The skill skips a reference whose BEGIN line is already in the
-  conversation, which happens when the always-on hook delivered it.
+- A skill template embeds an upstream with a line `{{upstream <name>}}`.
+  The build replaces it with the upstream block: the line `<!-- BEGIN
+  upstream <name> <repo>/<path> @<commit> -->`, the upstream `SKILL.md`
+  with its frontmatter removed and a final newline ensured, and `<!-- END
+  upstream <name> -->`.
+- The always-on chunks use the same block, byte for byte.
+- `tools/plugins.json` lists each skill's embedded upstreams in
+  `upstreams`. The build fails when the template's directives and the list
+  disagree, or when a directive names an unpinned upstream.
+- Tests check that each listed block appears exactly once in the skill and
+  matches the hook chunk that carries it, and that the `adhd-unslop` skill
+  body equals the hook bundle.
 
 #### Versioning rule
 
 A plugin ships an upstream's text when it is that upstream's vendored
-mirror, when one of its skills lists the upstream in `references`, or when
-its always-on chunks include it. `sync.mjs` raises the patch version of
-every such plugin once per bump run. A future `presentation` plugin that
-lists i-have-adhd therefore gets a new version whenever i-have-adhd
-changes. The CI version gate catches every other change to shipped files.
+mirror, when one of its skills embeds the upstream, or when its always-on
+chunks include it. `sync.mjs` raises the patch version of every such plugin
+once per bump run. A future `presentation` plugin that embeds i-have-adhd
+therefore gets a new version whenever i-have-adhd changes. The CI version
+gate catches every other change to shipped files.
 
 ### P2. Vendored plugins are byte-for-byte mirrors
 
@@ -226,19 +244,20 @@ limitation stays documented.
 | `codexInterface` | all | Codex `interface` block |
 | `kind` | all | `vendored` or `authored` |
 | `upstream`, `skill` | vendored | The pinned upstream and its skill folder name |
-| `skills` | authored | Map of skill name to `{ "references": [upstream, ...] }` |
+| `skills` | authored | Map of skill name to `{ "upstreams": [upstream, ...] }`, the upstreams its template embeds |
 | `alwaysOn` | authored, optional | Ordered chunk list. Each chunk lists parts: `{ "file": "<path under src/<plugin>/>" }` or `{ "upstream": "<name>" }` |
 
 An authored plugin's hand-written sources live in `src/<plugin>/`:
 
 - `skills/<skill>/` is copied to `plugins/<plugin>/skills/<skill>/`. A
-  `SKILL.md.tmpl` in it is rendered to `SKILL.md`. The only template syntax
-  is a line `{{include <path under src/<plugin>/>}}`, which inserts that
-  file. gstack renders skills from templates the same way.
+  `SKILL.md.tmpl` in it is rendered to `SKILL.md`. The template syntax is
+  two line directives: `{{include <path under src/<plugin>/>}}` inserts
+  that file, and `{{upstream <name>}}` inserts the pinned upstream block.
+  gstack renders skills from templates the same way.
 - `hooks/` is copied to `plugins/<plugin>/hooks/`.
 - Generated per plugin: both manifests, `README.md`, `NOTICE.md`, one
-  `LICENSES/<upstream>.LICENSE` per upstream it ships, reference files, and
-  the always-on chunks with their manifest.
+  `LICENSES/<upstream>.LICENSE` per upstream it ships, and the always-on
+  chunks with their manifest.
 
 Build rules:
 
@@ -248,15 +267,16 @@ Build rules:
   (`04`).
 - `build.mjs` writes expected files only. `build.mjs --prune` also deletes
   strays, and prints each path it deletes.
-- Tests require at least one skill per plugin, and that every `references`
+- Tests require at least one skill per plugin, and that every `upstreams`
   and `alwaysOn` upstream is pinned in `tools/upstream.json`.
 
 Adding `presentation`:
 
 1. Add an entry to `tools/plugins.json` with `"kind": "authored"` and
-   `"skills": { "presentation": { "references": ["i-have-adhd"] } }`.
-2. Write `src/presentation/skills/presentation/SKILL.md`, and
-   `agents/openai.yaml` if Codex needs its invocation policy.
+   `"skills": { "presentation": { "upstreams": ["i-have-adhd"] } }`.
+2. Write `src/presentation/skills/presentation/SKILL.md.tmpl` with a line
+   `{{upstream i-have-adhd}}` where the rules belong, and
+   `agents/openai.yaml` for its Codex invocation policy.
 3. Run `node tools/build.mjs` and the tests.
 
 ### P7. Manifests follow the documented minimum
@@ -347,10 +367,13 @@ endings and marks generated files.
 `tests/e2e/run.sh` stays local, because model-driven checks need signed-in
 CLIs. It gains:
 
-- Claude Code: `/adhd-unslop:adhd-unslop` with always-on off reads both
-  reference files, seen as Read tool calls on the `references/` paths.
-- Codex: the same, seen as reads of the cache `references/` paths in the
-  session log.
+- Claude Code and Codex: `/adhd-unslop:adhd-unslop` and
+  `$adhd-unslop:adhd-unslop` with always-on off deliver the whole skill,
+  seen in the transcript or rollout as both BEGIN lines and the last line
+  of the final check. The checks look at what arrived in context, not at
+  how the model answered.
+- The unprompted-question check runs before the mirrors are installed, and
+  requires that no skill loads.
 - Typed `/au-i-have-adhd:i-have-adhd` and `$au-i-have-adhd:i-have-adhd`
   still work with the restored upstream frontmatter.
 - Always-on delivers one complete bundle at startup, with each END line
@@ -365,8 +388,9 @@ CLIs. It gains:
   the result.
   - Claude Code: 0.2.2 pulls in both `au-` plugins as dependencies, and the
     user also installs `au-unslop` by name. After `claude plugin prune`,
-    `au-i-have-adhd` is gone, `au-unslop` stays, and always-on delivers one
-    bundle.
+    `au-i-have-adhd` is gone and `au-unslop` stays. `claude plugin update
+    au-unslop@adhd-unslop` moves the kept mirror to its new version, and
+    always-on delivers one bundle.
   - Codex: the user installs `au-unslop` by name, and the test records
     trust for every 0.2.2 handler using the hashes that `app-server`
     `hooks/list` reports. After the update, `hooks/list` reports the three
@@ -378,7 +402,8 @@ Documented migration from 0.2.2:
 - Claude Code: `claude plugin marketplace update adhd-unslop`, then
   `claude plugin update adhd-unslop@adhd-unslop`, then optionally `claude
   plugin prune` to remove the `au-` plugins that 0.2.2 installed as
-  dependencies.
+  dependencies. A mirror kept by name needs its own `claude plugin
+  update`.
 - Codex: `codex plugin marketplace upgrade adhd-unslop`, then `codex plugin
   add adhd-unslop@adhd-unslop`. Existing hook trust carries over. Remove the
   `au-` plugins with `codex plugin remove` only if they were installed for
@@ -386,8 +411,8 @@ Documented migration from 0.2.2:
 
 ### P11. Versions
 
-- `adhd-unslop` 0.3.0: no dependencies, references, launcher changes,
-  doctor.
+- `adhd-unslop` 0.3.0: no dependencies, embedded upstream texts, launcher
+  changes, doctor.
 - `au-i-have-adhd` 0.2.0 and `au-unslop` 0.2.0: upstream frontmatter
   restored.
 
@@ -412,6 +437,9 @@ path and the fallback named a skill Codex hides from the model.
 | Idea | Source | Why not |
 | --- | --- | --- |
 | Keep plugin `dependencies` | D4, D15 | Unused in the ecosystem, update failures, no Codex support |
+| Skill reads `references/` files | revision 4 | Claude Code denies or prompts for the reads; Codex skipped them in 7 of 8 runs (`11`) |
+| `allowed-tools: Read` | `11` | Pre-approves every Read while the skill is active; does nothing for Codex |
+| Shrink or reorder the skill to survive Claude Code's compaction cut | `11` | Fixes only the same-process case, cuts settled overlay text, or loses other rules; always-on covers compacting sessions |
 | Hook reads the `au-` plugins | idea1 option A | Siblings can be missing or at other pins |
 | Hook injects a pointer only | idea1 option B | Same context once loaded, less reliable |
 | Output style | idea1 option D | P4 |
@@ -463,3 +491,58 @@ path and the fallback named a skill Codex hides from the model.
 | Blocking 1, load check asserts all three plugins after installing one | The self-contained step asserts only `adhd-unslop`. A second step installs both `au-` plugins by name and asserts them. `plugin/read` covers the catalog for all three (P9) |
 | Optional, `PLUGIN_ROOT` on Codex 0.157.1 | Tested; same variables as 0.154.0 (`10`) |
 | Optional, unit cases for the env switch and footer | Added to the implementation's unit tests |
+
+## Revision 5
+
+Revision 4 reached CONSENSUS in round 9. Implementing it, the end-to-end
+script (`design/research/11-tests-e2e.md`) found two failures in the
+`references/` mechanism of P1:
+
+1. Claude Code denied both reads in `-p` mode, because the files sit outside
+   the working directory. The model answered anyway, with no upstream rules
+   loaded. An interactive session would ask for permission on each read.
+2. Codex read the files in 1 of 8 runs with a short prompt, and in 4 of 4
+   with the plugin's own default prompt. Whether the rules load depended on
+   the prompt.
+
+Revision 5 changes only how the skill gets the texts. It embeds them with a
+`{{upstream <name>}}` template directive, so the skill body is the hook
+bundle byte for byte. Everything else in revision 4 stands: no plugin
+dependencies, byte-for-byte mirrors, the frozen hook handlers, the launcher's
+resume rule, the generated `plugins/`, the doctor, and CI.
+
+It also records two findings from the same run:
+
+- With both mirrors installed, Codex 0.154.0 loaded `au-unslop:unslop` for
+  an unrelated question in 2 of 4 runs, and 0.157.1 in 0 of 4. That is
+  upstream's frontmatter, kept on purpose by P2. A user with always-on and
+  this mirror gets a second unslop that `stop unslop` does not control. The
+  README says so, and the check for an unprompted skill load now runs
+  before the mirrors are installed.
+- A mirror kept by name in Claude Code stays at its old version after the
+  upgrade until `claude plugin update` runs on it. P10 now says so.
+
+The second end-to-end run on revision 5 passed every check: Claude Code 17
+of 17, Codex 0.154.0 19 of 19, Codex 0.157.1 19 of 19, and `migrate` 16 of
+16 in each runtime. Both runtimes received the whole skill body byte for
+byte, so Codex does not cut a skill of about 22 KB.
+
+It also measured one platform limit (`11`, last section). With always-on
+off, Claude Code 2.1.283 re-attaches an invoked skill after `/compact` cut
+to 20,000 characters, which drops unslop rules 32 and 33, the END line, and
+the final check. After `--resume` and then `/compact`, it re-attaches
+nothing. The always-on hook is not affected, because it injects the whole
+bundle again on `compact`.
+
+Revision 5 documents this instead of reshaping the skill:
+
+- Shrinking the body under 20,000 characters would fix only the first case,
+  and would mean cutting overlay text that five review rounds settled, with
+  upstream growth pushing it over again later.
+- Moving the final check ahead of the upstream texts would lose other rules
+  instead, and would break the identity between the skill body and the hook
+  bundle, because chunk 1 has no room for it under the 10,000-character cap.
+- The README tells users who work in long, compacting sessions to turn on
+  always-on, or to invoke the skill again after a compaction. A unit test
+  reports the skill's size against the 20,000-character re-attach budget, so
+  the gap stays visible.

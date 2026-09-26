@@ -1,6 +1,6 @@
 ---
 name: unslop
-description: 'Remove AI patterns from writing. Load only when the user invokes it (/au-unslop:unslop in Claude Code, $au-unslop:unslop in Codex) or another skill, such as adhd-unslop, tells you to.'
+description: Cut AI tells from any writing. Must always apply.
 ---
 
 # Unslop

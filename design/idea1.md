@@ -1,8 +1,30 @@
 # Idea 1: how always-on should deliver the rules
 
-Status: proposal, 2026-09-26. Nothing here is implemented. The output-style
-option is untested. Decisions referenced as D1 to D21 are in
-`DECISIONS.md`.
+Status: resolved 2026-09-26 by `STRUCTURE-v2.md` and `DECISIONS.md` D12,
+D23, D24, and D25. This file keeps the reasoning at the time. Where it
+disagrees with those files, they win.
+
+## Outcome
+
+- The always-on hook keeps its three embedded chunks (option "Current").
+  Codex has no mechanism a plugin can set other than a hook, and the
+  embedded copy keeps always-on independent of the model reading files.
+- Option A, the hook reading the `au-` plugins, was dropped here and stays
+  dropped. In 0.3.0 `adhd-unslop` no longer depends on the mirrors at all.
+- Option B, a pointer-only hook, was dropped: the same context once loaded,
+  with less reliability.
+- Option C, the doctor, shipped as `adhd-unslop:doctor` (D26).
+- Option D, the output style, was rejected (D25). The official docs and a
+  test corrected three details below: the folder is `output-styles/`, not
+  `outputStyles/`; a plugin can force its style with `force-for-plugin:
+  true`, which overrides the user's own style and bypasses the opt-in flag;
+  and the docs state that a style still applies after compaction.
+- The 10,000-character hook cap is documented at
+  code.claude.com/docs/en/hooks.md#json-output, and it cannot be raised.
+- `resume` stays in the matcher. The launcher skips it in Claude Code,
+  which keeps the earlier copy, and injects in Codex, which can lose it
+  (D23).
+- The README's `~/.codex/AGENTS.md` fallback was removed (D20).
 
 ## The question
 

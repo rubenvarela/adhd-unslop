@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { bumpPatch, pluginsEmbedding, raiseVersions, reportMarkdown, citationReport } from "../tools/sync.mjs";
-import { stripFrontmatter } from "../plugins/adhd-unslop/hooks/lib.mjs";
+import { stripFrontmatter } from "../src/adhd-unslop/hooks/lib.mjs";
 import { read } from "./helpers.mjs";
 
 const config = () => JSON.parse(read("tools", "plugins.json"));

@@ -1,33 +1,33 @@
 #!/usr/bin/env node
 // Generate every shipped file from tools/plugins.json, tools/upstream.json,
-// upstream/, and src/:
+// upstream/, and src/. Nothing under plugins/ is edited by hand.
 //
-// - both marketplace files and each plugin's Claude and Codex manifests
-// - each vendored plugin: upstream SKILL.md with rewritten frontmatter,
-//   agents/openai.yaml, LICENSE, NOTICE.md
-// - the composed adhd-unslop skill (overlay plus load step), its hook chunks,
-//   chunk manifest, dependency list, licenses, and notice
+// - both marketplace files, and each plugin's Claude Code and Codex manifests,
+//   README.md, NOTICE.md, and LICENSES/
+// - vendored plugins: the upstream SKILL.md byte for byte, plus agents/openai.yaml
+// - authored plugins: src/<plugin>/skills/ and src/<plugin>/hooks/ copied, each
+//   SKILL.md.tmpl rendered, and the always-on chunks with their manifest
 //
-//   node tools/build.mjs           write everything
-//   node tools/build.mjs --check   exit 1 if any generated file is stale
+//   node tools/build.mjs           write every generated file
+//   node tools/build.mjs --check   exit 1 if a generated file is stale or missing,
+//                                  or a stray file sits under a generated folder
+//   node tools/build.mjs --prune   write, then delete stray files
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { sha256, stripFrontmatter, TOTAL_CHUNKS } from "../plugins/adhd-unslop/hooks/lib.mjs";
+import { sha256, stripFrontmatter, TOTAL_CHUNKS } from "../src/adhd-unslop/hooks/lib.mjs";
 
 export const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const COMPOSED = "adhd-unslop";
-export const PLUGIN_ROOT = path.join(repo, "plugins", COMPOSED);
-export const SKILL_DIR = path.join(PLUGIN_ROOT, "skills", COMPOSED);
-export const SKILL_PATH = path.join(SKILL_DIR, "SKILL.md");
-export const CHUNK_DIR = path.join(PLUGIN_ROOT, "hooks", "chunks");
-export const OVERLAY_DIR = path.join(repo, "src", COMPOSED, "overlay");
+// Folders whose every file the build owns.
+export const GENERATED_ROOTS = ["plugins", ".claude-plugin", ".agents/plugins"];
+// Files the operating system drops into folders; never shipped, never strays.
+const IGNORED_NAMES = new Set([".DS_Store"]);
 
 const read = (...p) => fs.readFileSync(path.join(repo, ...p), "utf8");
 const json = (value) => JSON.stringify(value, null, 2) + "\n";
-const rel = (abs) => path.relative(repo, abs);
 const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const endsWithNewline = (s) => (s.endsWith("\n") ? s : s + "\n");
 
 export function loadPins() {
   return JSON.parse(read("tools", "upstream.json")).upstreams;
@@ -37,12 +37,17 @@ export function loadConfig() {
   return JSON.parse(read("tools", "plugins.json"));
 }
 
-export function vendoredPlugins(config = loadConfig()) {
-  return config.plugins.filter((p) => p.kind === "vendored");
-}
+export const vendoredPlugins = (config = loadConfig()) => config.plugins.filter((p) => p.kind === "vendored");
+export const authoredPlugins = (config = loadConfig()) => config.plugins.filter((p) => p.kind === "authored");
 
-export function composedPlugin(config = loadConfig()) {
-  return config.plugins.find((p) => p.name === COMPOSED);
+// Every upstream whose text a plugin ships: its mirror, the upstreams its skills
+// embed, and its always-on chunks. sync.mjs raises the version of each such plugin.
+export function upstreamsShipped(plugin) {
+  const names = new Set();
+  if (plugin.kind === "vendored") names.add(plugin.upstream);
+  for (const skill of Object.values(plugin.skills ?? {})) for (const n of skill.upstreams ?? []) names.add(n);
+  for (const chunk of plugin.alwaysOn ?? []) for (const part of chunk) if (part.upstream) names.add(part.upstream);
+  return [...names];
 }
 
 export function markers(name, pins) {
@@ -53,35 +58,18 @@ export function markers(name, pins) {
   };
 }
 
-function endsWithNewline(s) {
-  return s.endsWith("\n") ? s : s + "\n";
+// The upstream block (design/STRUCTURE-v2.md P1): the BEGIN line, the upstream
+// SKILL.md without frontmatter and with a final newline, the END line. The same
+// bytes go into a skill that embeds the upstream and into the always-on chunks.
+export function upstreamBlock(name, pins) {
+  const { begin, end } = markers(name, pins);
+  return begin + endsWithNewline(stripFrontmatter(read("upstream", name, "SKILL.md"))) + end;
 }
 
-function yamlSingleQuoted(s) {
-  return `'${s.replace(/'/g, "''")}'`;
-}
-
-// Replace `description`, drop `disable-model-invocation`, keep every other line.
-// Only single-line descriptions are supported; anything else fails the build.
-export function rewriteFrontmatter(text, description) {
-  const m = text.match(/^---\n([\s\S]*?)\n---\n/);
-  if (!m) throw new Error("upstream SKILL.md has no frontmatter");
-  const lines = m[1].split("\n");
-  const out = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^description:/.test(line)) {
-      if (i + 1 < lines.length && /^\s+\S/.test(lines[i + 1])) throw new Error("multi-line upstream description is not supported");
-      out.push(`description: ${yamlSingleQuoted(description)}`);
-    } else if (!/^disable-model-invocation:/.test(line)) {
-      out.push(line);
-    }
-  }
-  return `---\n${out.join("\n")}\n---\n${text.slice(m[0].length)}`;
-}
-
-export function vendoredSkill(plugin) {
-  return rewriteFrontmatter(read("upstream", plugin.upstream, "SKILL.md"), plugin.skillDescription);
+// True when upstream frontmatter sets disable-model-invocation: true.
+export function userOnly(skillText) {
+  const m = skillText.match(/^---\n([\s\S]*?)\n---\n/);
+  return Boolean(m && /^disable-model-invocation:\s*true\s*$/m.test(m[1]));
 }
 
 export function openaiYaml({ displayName, shortDescription, defaultPrompt, allowImplicit }) {
@@ -91,42 +79,52 @@ export function openaiYaml({ displayName, shortDescription, defaultPrompt, allow
   return lines.join("\n");
 }
 
-export function composedFrontmatter() {
-  return [
-    "---",
-    `name: ${COMPOSED}`,
-    "description: 'Cut AI tells from all writing and shape direct replies for a reader with ADHD. Loads the i-have-adhd and unslop skills unchanged and adds one tie-breaker: on a conflict, i-have-adhd wins in a direct reply and unslop wins everywhere else. Invoke with /adhd-unslop; stays on until \"normal mode\".'",
-    "disable-model-invocation: true",
-    "license: MIT",
-    "metadata:",
-    '  tags: "ADHD, Writing, Output Style, Formatting"',
-    '  category: "productivity"',
-    "---",
-    "",
-  ].join("\n");
+// Template syntax, one directive per line:
+//   {{include <path under src/<plugin>/>}}  inserts that file
+//   {{upstream <name>}}                     inserts the pinned upstream block
+export function templateUpstreams(text) {
+  return [...text.matchAll(/^\{\{upstream (.+)\}\}$/gm)].map((m) => m[1]);
 }
 
-const GENERATED_NOTE = "<!-- GENERATED by tools/build.mjs. Edit src/adhd-unslop/overlay/*.md or bump a pin in tools/upstream.json, then rebuild. -->\n";
+export function renderTemplate(pluginName, text, pins = loadPins()) {
+  return text
+    .split("\n")
+    .map((line) => {
+      const inc = line.match(/^\{\{include (.+)\}\}$/);
+      if (inc) return read("src", pluginName, inc[1]).replace(/\n$/, "");
+      const up = line.match(/^\{\{upstream (.+)\}\}$/);
+      if (up) {
+        if (!pins[up[1]]) throw new Error(`${pluginName}: template embeds unpinned upstream ${up[1]}`);
+        return upstreamBlock(up[1], pins).replace(/\n$/, "");
+      }
+      return line;
+    })
+    .join("\n");
+}
 
-// The skill loads the upstream texts at run time. The hook chunks carry them
-// inline instead, because a hook cannot rely on a sibling plugin being installed.
-export function compose() {
-  const pins = loadPins();
-  const overlay = (f) => endsWithNewline(fs.readFileSync(path.join(OVERLAY_DIR, f), "utf8"));
-  const upstreamBody = (name) => endsWithNewline(stripFrontmatter(read("upstream", name, "SKILL.md")));
-  const adhd = markers("i-have-adhd", pins);
-  const unslop = markers("unslop", pins);
+function walk(dir) {
+  const out = [];
+  if (!fs.existsSync(dir)) return out;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (IGNORED_NAMES.has(entry.name)) continue;
+    const abs = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...walk(abs));
+    else out.push(abs);
+  }
+  return out;
+}
 
-  const skillBody = [GENERATED_NOTE + overlay("00-intro.md"), overlay("05-load.md"), overlay("10-precedence.md"), overlay("20-lifecycle.md"), overlay("90-final-check.md")].join("\n");
-
-  const chunk1 = GENERATED_NOTE + overlay("00-intro.md") + "\n" + overlay("10-precedence.md") + "\n" + overlay("20-lifecycle.md") + "\n";
-  const chunk2 = adhd.begin + upstreamBody("i-have-adhd") + adhd.end + "\n";
-  const chunk3 = unslop.begin + upstreamBody("unslop") + unslop.end + "\n" + overlay("90-final-check.md");
-  const chunks = [chunk1, chunk2, chunk3];
-  const hookBody = chunks.join("");
+// The always-on chunks: each chunk is its parts joined by a blank line.
+export function composeChunks(plugin, pins) {
+  const chunks = (plugin.alwaysOn ?? []).map((parts) =>
+    parts
+      .map((part) => (part.upstream ? upstreamBlock(part.upstream, pins) : endsWithNewline(read("src", plugin.name, part.file))))
+      .join("\n"),
+  );
+  const body = chunks.join("");
   const manifest = {
     generatedBy: "tools/build.mjs",
-    compositeSha256: sha256(hookBody),
+    compositeSha256: sha256(body),
     chunks: chunks.map((c, i) => ({
       index: i + 1,
       file: `${i + 1}.md`,
@@ -135,38 +133,48 @@ export function compose() {
       utf16Units: c.length,
     })),
   };
-  return { skill: composedFrontmatter() + skillBody, skillBody, hookBody, chunks, manifest, pins };
+  return { chunks, body, manifest };
 }
 
-function claudePluginJson(plugin, author) {
-  const j = { name: plugin.name, version: plugin.version, description: plugin.description, author, license: "MIT" };
-  if (plugin.dependencies?.length) j.dependencies = plugin.dependencies;
-  return j;
-}
-
-function codexPluginJson(plugin, author) {
+function claudePluginJson(plugin, config) {
   return {
     name: plugin.name,
     version: plugin.version,
     description: plugin.description,
-    author,
+    author: config.author,
+    homepage: config.homepage,
+    repository: config.repository,
+    license: "MIT",
+    keywords: plugin.keywords ?? [],
+  };
+}
+
+function codexPluginJson(plugin, config, hasHooks) {
+  const i = plugin.codexInterface;
+  return {
+    name: plugin.name,
+    version: plugin.version,
+    description: plugin.description,
+    author: config.author,
     license: "MIT",
     keywords: plugin.keywords ?? [],
     skills: "./skills/",
+    ...(hasHooks ? { hooks: "./hooks/hooks.json" } : {}),
     interface: {
-      displayName: plugin.codexInterface.displayName,
-      shortDescription: plugin.codexInterface.shortDescription,
-      longDescription: plugin.codexInterface.longDescription,
-      developerName: author.name,
+      displayName: i.displayName,
+      shortDescription: i.shortDescription,
+      longDescription: i.longDescription,
+      developerName: config.author.name,
       category: capitalize(plugin.category),
-      capabilities: plugin.codexInterface.capabilities ?? ["Instructions"],
-      ...(plugin.codexInterface.defaultPrompt ? { defaultPrompt: plugin.codexInterface.defaultPrompt } : {}),
-      ...(plugin.codexInterface.brandColor ? { brandColor: plugin.codexInterface.brandColor } : {}),
+      capabilities: i.capabilities ?? ["Instructions"],
+      ...(i.defaultPrompt ? { defaultPrompt: i.defaultPrompt } : {}),
+      ...(i.brandColor ? { brandColor: i.brandColor } : {}),
     },
   };
 }
 
 function claudeMarketplace(config) {
+  // Entries carry no version: plugin.json holds it, and the docs say not to set both.
   return {
     $schema: "https://www.schemastore.org/claude-code-marketplace.json",
     name: config.marketplace.name,
@@ -177,7 +185,6 @@ function claudeMarketplace(config) {
       description: p.marketplaceDescription ?? p.description,
       source: `./plugins/${p.name}`,
       category: p.category,
-      version: p.version,
     })),
   };
 }
@@ -195,84 +202,152 @@ function codexMarketplace(config) {
   };
 }
 
-export function composedNotice(pins) {
+function skillNames(plugin) {
+  return plugin.kind === "vendored" ? [plugin.skill] : Object.keys(plugin.skills ?? {});
+}
+
+function pluginReadme(plugin, config) {
+  const mkt = config.marketplace.name;
+  const id = `${plugin.name}@${mkt}`;
+  const skills = skillNames(plugin);
+  const lines = [
+    `# ${plugin.name}`,
+    "",
+    "<!-- GENERATED by tools/build.mjs from tools/plugins.json. -->",
+    "",
+    plugin.description,
+    "",
+    "## Install",
+    "",
+    "```bash",
+    `claude plugin marketplace add ${config.repository.replace("https://github.com/", "")}`,
+    `claude plugin install ${id}`,
+    "",
+    `codex plugin marketplace add ${config.repository.replace("https://github.com/", "")} --ref main`,
+    `codex plugin add ${id}`,
+    "```",
+    "",
+    "## Skills",
+    "",
+    ...skills.map((s) => `- \`/${plugin.name}:${s}\` in Claude Code, \`$${plugin.name}:${s}\` in Codex`),
+    "",
+    `See the repository README for details: ${config.homepage}`,
+    "",
+  ];
+  return lines.join("\n");
+}
+
+function noticeText(plugin, pins) {
+  const shipped = upstreamsShipped(plugin);
+  if (!shipped.length) return null;
   const lines = [
     "# Notice",
     "",
-    "The always-on hook of this plugin embeds two upstream works, byte-for-byte",
-    "after removing their YAML frontmatter. The skill loads the same texts from",
-    "the au-i-have-adhd and au-unslop plugins. Each keeps its own MIT license in",
-    "this directory.",
+    plugin.kind === "vendored"
+      ? "This plugin ships an upstream skill file unchanged, byte for byte."
+      : "This plugin ships upstream skill text unchanged after removing its YAML frontmatter, in its skill and in the always-on hook chunks.",
+    "Each upstream keeps its own MIT license in `LICENSES/`.",
     "",
     "| Upstream | Repository | Commit | File | License file |",
     "| --- | --- | --- | --- | --- |",
   ];
-  for (const [name, pin] of Object.entries(pins)) {
-    lines.push(`| ${name} | https://github.com/${pin.repo} | ${pin.commit} | ${pin.files["SKILL.md"].path} | ${name}.LICENSE |`);
+  for (const name of shipped) {
+    const pin = pins[name];
+    lines.push(`| ${name} | https://github.com/${pin.repo} | ${pin.commit} | ${pin.files["SKILL.md"].path} | LICENSES/${name}.LICENSE |`);
   }
-  lines.push("", "The unslop skill in pstack-claude is a port of Lauren Tan's pstack for Cursor.", "");
+  if (shipped.includes("unslop")) lines.push("", "The unslop skill in pstack-claude is a port of Lauren Tan's pstack for Cursor.");
+  lines.push("");
   return lines.join("\n");
-}
-
-export function vendoredNotice(plugin, pin) {
-  return [
-    "# Notice",
-    "",
-    `This plugin ships a copy of \`${pin.files["SKILL.md"].path}\` from`,
-    `https://github.com/${pin.repo} at commit ${pin.commit}.`,
-    "",
-    "The body of `SKILL.md` is unchanged. The frontmatter differs from upstream",
-    "in two ways. The description is replaced, and `disable-model-invocation` is",
-    "removed so that other skills can load this one.",
-    "",
-    "The upstream MIT license is in `skills/" + plugin.skill + "/LICENSE`.",
-    "",
-  ].join("\n");
 }
 
 export function expectedFiles() {
   const config = loadConfig();
   const pins = loadPins();
-  const author = config.author;
   const files = new Map();
   files.set(".claude-plugin/marketplace.json", json(claudeMarketplace(config)));
   files.set(".agents/plugins/marketplace.json", json(codexMarketplace(config)));
 
   for (const plugin of config.plugins) {
     const root = `plugins/${plugin.name}`;
-    files.set(`${root}/.claude-plugin/plugin.json`, json(claudePluginJson(plugin, author)));
-    files.set(`${root}/.codex-plugin/plugin.json`, json(codexPluginJson(plugin, author)));
-    if (plugin.kind === "vendored") {
-      const skillDir = `${root}/skills/${plugin.skill}`;
-      files.set(`${skillDir}/SKILL.md`, vendoredSkill(plugin));
-      files.set(`${skillDir}/LICENSE`, read("upstream", plugin.upstream, "LICENSE"));
-      files.set(`${skillDir}/agents/openai.yaml`, openaiYaml({ displayName: plugin.codexInterface.displayName, shortDescription: plugin.codexInterface.shortDescription, allowImplicit: true }));
-      files.set(`${root}/NOTICE.md`, vendoredNotice(plugin, pins[plugin.upstream]));
-    }
-  }
+    let hasHooks = false;
 
-  const composed = composedPlugin(config);
-  const c = compose();
-  files.set(rel(SKILL_PATH), c.skill);
-  files.set(rel(path.join(SKILL_DIR, "agents", "openai.yaml")), openaiYaml({
-    displayName: composed.codexInterface.displayName,
-    shortDescription: composed.codexInterface.shortDescription,
-    defaultPrompt: composed.codexInterface.defaultPrompt?.[0],
-    allowImplicit: false,
-  }));
-  c.chunks.forEach((chunk, i) => files.set(rel(path.join(CHUNK_DIR, `${i + 1}.md`)), chunk));
-  files.set(rel(path.join(CHUNK_DIR, "manifest.json")), json(c.manifest));
-  files.set(rel(path.join(PLUGIN_ROOT, "hooks", "dependencies.json")), json({ marketplace: config.marketplace.name, plugins: composed.dependencies ?? [] }));
-  for (const name of Object.keys(pins)) {
-    files.set(rel(path.join(SKILL_DIR, "LICENSES", `${name}.LICENSE`)), read("upstream", name, "LICENSE"));
+    if (plugin.kind === "vendored") {
+      const text = read("upstream", plugin.upstream, "SKILL.md");
+      const skillDir = `${root}/skills/${plugin.skill}`;
+      files.set(`${skillDir}/SKILL.md`, text);
+      files.set(`${skillDir}/agents/openai.yaml`, openaiYaml({
+        displayName: plugin.codexInterface.displayName,
+        shortDescription: plugin.codexInterface.shortDescription,
+        allowImplicit: !userOnly(text),
+      }));
+    } else if (plugin.kind === "authored") {
+      const srcSkills = path.join(repo, "src", plugin.name, "skills");
+      const onDisk = fs.existsSync(srcSkills) ? fs.readdirSync(srcSkills).filter((d) => !IGNORED_NAMES.has(d)) : [];
+      const listed = Object.keys(plugin.skills ?? {});
+      const unlisted = onDisk.filter((d) => !listed.includes(d));
+      const missing = listed.filter((d) => !onDisk.includes(d));
+      if (unlisted.length || missing.length) {
+        throw new Error(`${plugin.name}: skills in tools/plugins.json and src/${plugin.name}/skills/ differ (unlisted: ${unlisted.join(", ") || "none"}; missing: ${missing.join(", ") || "none"})`);
+      }
+      for (const [skill, spec] of Object.entries(plugin.skills ?? {})) {
+        const srcDir = path.join(srcSkills, skill);
+        let embedded = [];
+        for (const abs of walk(srcDir)) {
+          const rel = path.relative(srcDir, abs).split(path.sep).join("/");
+          const out = `${root}/skills/${skill}/`;
+          if (rel === "SKILL.md.tmpl") {
+            const tmpl = fs.readFileSync(abs, "utf8");
+            embedded = templateUpstreams(tmpl);
+            files.set(out + "SKILL.md", renderTemplate(plugin.name, tmpl, pins));
+          } else {
+            files.set(out + rel, fs.readFileSync(abs, "utf8"));
+          }
+        }
+        const listed = spec.upstreams ?? [];
+        if (embedded.join() !== listed.join()) {
+          throw new Error(`${plugin.name}:${skill}: the template embeds [${embedded.join(", ")}] but tools/plugins.json lists upstreams [${listed.join(", ")}]`);
+        }
+      }
+      const srcHooks = path.join(repo, "src", plugin.name, "hooks");
+      for (const abs of walk(srcHooks)) {
+        hasHooks = true;
+        files.set(`${root}/hooks/${path.relative(srcHooks, abs).split(path.sep).join("/")}`, fs.readFileSync(abs, "utf8"));
+      }
+      if (plugin.alwaysOn) {
+        const { chunks, manifest } = composeChunks(plugin, pins);
+        if (chunks.length !== TOTAL_CHUNKS) throw new Error(`${plugin.name}: alwaysOn lists ${chunks.length} chunks; the launcher expects ${TOTAL_CHUNKS}`);
+        chunks.forEach((c, i) => files.set(`${root}/hooks/chunks/${i + 1}.md`, c));
+        files.set(`${root}/hooks/chunks/manifest.json`, json(manifest));
+      }
+    } else {
+      throw new Error(`${plugin.name}: unknown kind ${plugin.kind}`);
+    }
+
+    files.set(`${root}/.claude-plugin/plugin.json`, json(claudePluginJson(plugin, config)));
+    files.set(`${root}/.codex-plugin/plugin.json`, json(codexPluginJson(plugin, config, hasHooks)));
+    files.set(`${root}/README.md`, pluginReadme(plugin, config));
+    const notice = noticeText(plugin, pins);
+    if (notice) files.set(`${root}/NOTICE.md`, notice);
+    for (const up of upstreamsShipped(plugin)) files.set(`${root}/LICENSES/${up}.LICENSE`, read("upstream", up, "LICENSE"));
   }
-  files.set(rel(path.join(SKILL_DIR, "LICENSES", "NOTICE.md")), composedNotice(pins));
   return files;
 }
 
-export function staleFiles() {
+// Files under a generated folder that the build would not write.
+export function strayFiles(expected = expectedFiles()) {
+  const strays = [];
+  for (const top of GENERATED_ROOTS) {
+    for (const abs of walk(path.join(repo, top))) {
+      const rel = path.relative(repo, abs).split(path.sep).join("/");
+      if (!expected.has(rel)) strays.push(rel);
+    }
+  }
+  return strays.sort();
+}
+
+export function staleFiles(expected = expectedFiles()) {
   const stale = [];
-  for (const [file, text] of expectedFiles()) {
+  for (const [file, text] of expected) {
     let current = null;
     try { current = read(file); } catch { /* missing */ }
     if (current !== text) stale.push(file);
@@ -280,29 +355,51 @@ export function staleFiles() {
   return stale;
 }
 
-export function writeAll() {
-  for (const [file, text] of expectedFiles()) {
+export function writeAll(expected = expectedFiles()) {
+  for (const [file, text] of expected) {
     const abs = path.join(repo, file);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(abs, text);
+    if (!fs.existsSync(abs) || fs.readFileSync(abs, "utf8") !== text) fs.writeFileSync(abs, text);
   }
 }
 
+function removeEmptyDirs(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) removeEmptyDirs(path.join(dir, entry.name));
+  }
+  if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+}
+
+export function prune(expected = expectedFiles()) {
+  const strays = strayFiles(expected);
+  for (const rel of strays) fs.rmSync(path.join(repo, rel));
+  for (const top of GENERATED_ROOTS) removeEmptyDirs(path.join(repo, top));
+  return strays;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv.includes("--check")) {
-    const stale = staleFiles();
-    if (stale.length) {
-      console.error("stale generated files:\n  " + stale.join("\n  "));
-      process.exit(1);
+  try {
+    const expected = expectedFiles();
+    if (process.argv.includes("--check")) {
+      const stale = staleFiles(expected);
+      const strays = strayFiles(expected);
+      if (stale.length) console.error("stale or missing generated files:\n  " + stale.join("\n  "));
+      if (strays.length) console.error("stray files under generated folders (run node tools/build.mjs --prune):\n  " + strays.join("\n  "));
+      if (stale.length || strays.length) process.exit(1);
+      console.log("generated files are current");
+    } else {
+      writeAll(expected);
+      console.log(`wrote ${expected.size} generated files`);
+      if (process.argv.includes("--prune")) {
+        for (const rel of prune(expected)) console.log(`deleted stray ${rel}`);
+      } else {
+        const strays = strayFiles(expected);
+        if (strays.length) console.warn("stray files under generated folders (delete with --prune):\n  " + strays.join("\n  "));
+      }
     }
-    console.log("generated files are current");
-  } else {
-    writeAll();
-    const c = compose();
-    console.log(`wrote ${rel(SKILL_PATH)} (${c.skill.length} chars)`);
-    console.log(`hook bundle ${c.manifest.compositeSha256.slice(0, 12)}, ${c.hookBody.length} chars`);
-    c.manifest.chunks.forEach((m) => console.log(`  chunk ${m.index}: ${m.utf16Units} chars payload`));
-    for (const p of vendoredPlugins()) console.log(`wrote plugins/${p.name}/skills/${p.skill}/SKILL.md`);
-    if (c.chunks.length !== TOTAL_CHUNKS) throw new Error("chunk count drifted from lib.TOTAL_CHUNKS");
+  } catch (err) {
+    console.error(err.message);
+    process.exit(1);
   }
 }

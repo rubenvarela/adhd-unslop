@@ -1,10 +1,10 @@
 # Notice
 
-This plugin ships a copy of `plugins/pstack/skills/unslop/SKILL.md` from
-https://github.com/michael-denyer/pstack-claude at commit 4a3ef20bba5b49c3d137c07809227a8b2b568f32.
+This plugin ships an upstream skill file unchanged, byte for byte.
+Each upstream keeps its own MIT license in `LICENSES/`.
 
-The body of `SKILL.md` is unchanged. The frontmatter differs from upstream
-in two ways. The description is replaced, and `disable-model-invocation` is
-removed so that other skills can load this one.
+| Upstream | Repository | Commit | File | License file |
+| --- | --- | --- | --- | --- |
+| unslop | https://github.com/michael-denyer/pstack-claude | 4a3ef20bba5b49c3d137c07809227a8b2b568f32 | plugins/pstack/skills/unslop/SKILL.md | LICENSES/unslop.LICENSE |
 
-The upstream MIT license is in `skills/unslop/LICENSE`.
+The unslop skill in pstack-claude is a port of Lauren Tan's pstack for Cursor.

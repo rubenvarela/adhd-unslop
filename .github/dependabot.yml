@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Actions are pinned by commit SHA with a version comment; Dependabot
+  # updates both. The CLI pins in tools/cli-versions.json are raised by the
+  # PR that cli-drift.yml opens when the latest releases pass.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"

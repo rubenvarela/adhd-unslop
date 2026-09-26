@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Upstream skill files stay byte for byte as fetched.
+upstream/** -text
+
+# Written by tools/build.mjs. Edit the sources instead.
+plugins/** linguist-generated=true
+.claude-plugin/marketplace.json linguist-generated=true
+.agents/plugins/marketplace.json linguist-generated=true

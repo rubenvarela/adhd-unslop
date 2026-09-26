@@ -1,0 +1,184 @@
+name: CLI drift
+
+# The load check from verify.yml, against the latest Claude Code and Codex
+# releases instead of the pins in tools/cli-versions.json.
+# - A failure opens or updates one issue.
+# - A pass on newer releases opens or updates one PR that raises the pins.
+# The latest CLIs run in a read-only job. The jobs that write run no CLI.
+
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cli-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: Load in the latest Claude Code and Codex
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read # check out the repo
+    env:
+      DISABLE_AUTOUPDATER: "1"
+    outputs:
+      outcome: ${{ steps.load.outcome }}
+      claude: ${{ steps.versions.outputs.claude }}
+      codex: ${{ steps.versions.outputs.codex }}
+      report: ${{ steps.report.outputs.report }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Install the latest CLIs
+        id: install
+        continue-on-error: true
+        # The CLIs under test, not build dependencies, so there is no lockfile.
+        run: | # zizmor: ignore[adhoc-packages]
+          npm install --global --prefix "$RUNNER_TEMP/cli" \
+            "@anthropic-ai/claude-code@latest" \
+            "@openai/codex@latest"
+          echo "$RUNNER_TEMP/cli/bin" >> "$GITHUB_PATH"
+
+      - name: Read the installed versions
+        id: versions
+        if: steps.install.outcome == 'success'
+        run: |
+          echo "claude=$(claude --version | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "codex=$(codex --version </dev/null | awk '{print $NF}')" >> "$GITHUB_OUTPUT"
+
+      - name: Run the load check
+        id: load
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          node tools/load-check.mjs 2>&1 | tee "$RUNNER_TEMP/load-check.log"
+
+      - name: Write the report
+        id: report
+        if: always()
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          LOAD: ${{ steps.load.outcome }}
+        run: |
+          log="$RUNNER_TEMP/load-check.log"
+          touch "$log"
+          {
+            echo '```'
+            grep -E '^(claude|codex): ' "$log" || echo "no CLI versions printed"
+            echo
+            # Each FAIL line with its indented detail lines.
+            awk '/^FAIL/ { keep = 1; print; next } /^      / { if (keep) print; next } { keep = 0 }' "$log" > "$RUNNER_TEMP/fails.txt"
+            if [ "$INSTALL" != "success" ]; then
+              echo "Installing the latest CLIs failed. See the run log."
+            elif [ -s "$RUNNER_TEMP/fails.txt" ]; then
+              cat "$RUNNER_TEMP/fails.txt"
+            elif [ "$LOAD" = "failure" ]; then
+              tail -n 40 "$log"
+            else
+              grep -E 'passed, ' "$log" || echo "passed"
+            fi
+            echo '```'
+          } > "$RUNNER_TEMP/report.md"
+          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "report<<ADHD_UNSLOP_EOF"
+            cat "$RUNNER_TEMP/report.md"
+            echo "ADHD_UNSLOP_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Fail the job
+        if: steps.install.outcome != 'success' || steps.load.outcome != 'success'
+        run: exit 1
+
+  issue:
+    name: Open or update the drift issue
+    needs: drift
+    if: always() && needs.drift.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write # open or comment on the drift issue
+    steps:
+      - name: Open or update the drift issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPORT: ${{ needs.drift.outputs.report }}
+        run: |
+          title="CLI drift: plugin load check failed"
+          {
+            echo "The daily load check failed against the latest CLI releases: $RUN_URL"
+            echo
+            printf '%s\n' "$REPORT"
+            echo
+            echo "Re-test the affected platform facts in design/DECISIONS.md, then fix the plugin or the check."
+          } > "$RUNNER_TEMP/issue.md"
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$RUNNER_TEMP/issue.md"
+          else
+            gh issue create --title "$title" --body-file "$RUNNER_TEMP/issue.md"
+          fi
+
+  pins:
+    name: Raise the pins to the tested releases
+    needs: drift
+    if: needs.drift.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # push the cli-pins branch
+      pull-requests: write # open or update the pins PR
+      actions: write # dispatch verify.yml on the pins PR branch
+    steps:
+      # create-pull-request sets up its own git credentials from its token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A workflow file cannot be pushed with GITHUB_TOKEN, so the pins live in
+      # a plain JSON file that verify.yml reads.
+      - name: Write the tested versions
+        env:
+          CLAUDE: ${{ needs.drift.outputs.claude }}
+          CODEX: ${{ needs.drift.outputs.codex }}
+        run: |
+          case "$CLAUDE$CODEX" in
+            *[!0-9.]*|"") echo "unexpected version strings: '$CLAUDE' '$CODEX'"; exit 1 ;;
+          esac
+          printf '{\n  "claude-code": "%s",\n  "codex": "%s"\n}\n' "$CLAUDE" "$CODEX" > tools/cli-versions.json
+          git diff --stat
+
+      - name: Open or update the pins PR
+        id: pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          branch: cli-pins
+          delete-branch: true
+          add-paths: tools/cli-versions.json
+          commit-message: Raise pinned CLI versions
+          title: Raise pinned CLI versions
+          body: |
+            The daily load check passed against Claude Code ${{ needs.drift.outputs.claude }} and Codex ${{ needs.drift.outputs.codex }}. This PR raises the pins in `tools/cli-versions.json` to those releases.
+
+            Before merging, re-test the platform facts in `design/DECISIONS.md` that these releases could change, and record the new versions at the top of that file.
+
+      # A PR opened with GITHUB_TOKEN does not trigger pull_request workflows,
+      # but GITHUB_TOKEN may start a workflow_dispatch run.
+      - name: Verify the pins PR branch
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run verify.yml --ref cli-pins

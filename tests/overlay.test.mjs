@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, test } from "node:test";
 import { repo, read, proseOnly } from "./helpers.mjs";
 import { ruleNumbers, overlayCitations, CITATION_KINDS, citedNumbers } from "../tools/sync.mjs";
-import { stripFrontmatter } from "../plugins/adhd-unslop/hooks/lib.mjs";
+import { stripFrontmatter } from "../src/adhd-unslop/hooks/lib.mjs";
 
 const overlayDir = ["src", "adhd-unslop", "overlay"];
 const overlayFiles = fs.readdirSync(path.join(repo, ...overlayDir)).filter((f) => f.endsWith(".md")).sort();
@@ -76,14 +76,6 @@ describe("precedence and lifecycle content", () => {
       assert.ok(existing.size > 0, `${kind.label} list found upstream`);
       for (const n of citedNumbers(kind.label)) assert.ok(existing.has(n), `${kind.label} ${n} cited but missing upstream`);
     }
-  });
-  test("load step names both vendored skills and the missing-skill fallback", () => {
-    const load = read(...overlayDir, "05-load.md");
-    for (const name of ["`au-i-have-adhd:i-have-adhd`", "`au-unslop:unslop`"]) assert.ok(load.includes(name), name);
-    assert.match(load, /Skill tool/);
-    assert.match(load, /claude plugin install <plugin>@adhd-unslop/);
-    assert.match(load, /codex plugin add <plugin>@adhd-unslop/);
-    assert.match(load, /BEGIN upstream/);
   });
   test("no passage assumes the upstream texts are embedded in the skill", () => {
     assert.doesNotMatch(overlayText, /appear (below|above)|embedded upstream/i);

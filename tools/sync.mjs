@@ -6,6 +6,8 @@
 //                                               check dependencies and rule citations, swap in,
 //                                               raise plugin versions, build and test,
 //                                               promote on success, restore on failure
+//   node tools/sync.mjs --verify-remote         refetch every pinned file at its pinned commit and
+//                                               compare it with the pinned sha256
 //   node tools/sync.mjs --latest [--report <file>]
 //                                               bump every upstream whose pinned files changed
 //                                               on its default branch, write a Markdown report,
@@ -18,7 +20,8 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { sha256, stripFrontmatter } from "../plugins/adhd-unslop/hooks/lib.mjs";
+import { sha256, stripFrontmatter } from "../src/adhd-unslop/hooks/lib.mjs";
+import { GENERATED_ROOTS, upstreamsShipped } from "./build.mjs";
 
 const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pinsPath = path.join(repo, "tools", "upstream.json");
@@ -144,10 +147,10 @@ export function bumpPatch(version) {
   return `${m[1]}.${m[2]}.${Number(m[3]) + 1}`;
 }
 
-// Plugins whose shipped text includes this upstream: its vendored copy and any
-// composed plugin that embeds it in hook chunks.
+// Plugins whose shipped text includes one of these upstreams: its mirror, any
+// skill that lists it in references, and any always-on chunk that carries it.
 export function pluginsEmbedding(config, names) {
-  return config.plugins.filter((p) => names.some((n) => p.upstream === n || p.embeds?.includes(n))).map((p) => p.name);
+  return config.plugins.filter((p) => upstreamsShipped(p).some((n) => names.includes(n))).map((p) => p.name);
 }
 
 // Raise each affected plugin's patch version once, however many upstreams changed.
@@ -166,7 +169,7 @@ function buildAndTest() {
   run("node", ["--test", ...fs.readdirSync(path.join(repo, "tests")).filter((f) => f.endsWith(".test.mjs")).map((f) => path.join("tests", f))]);
 }
 
-const GENERATED = ["plugins", ".claude-plugin", ".agents/plugins"];
+const GENERATED = GENERATED_ROOTS;
 
 // Copy everything a bump can change, and return a function that puts it back.
 function snapshot(label) {
@@ -299,6 +302,20 @@ export function reportMarkdown({ results, versions }, pins = readPins()) {
   return lines.join("\n");
 }
 
+// Refetch each pinned file at its pinned commit and compare it with the pin.
+// Catches a hand edit to upstream/ that also rewrote the sha256 in the pin.
+export async function verifyRemote(pins = readPins()) {
+  const problems = [];
+  for (const [name, pin] of Object.entries(pins.upstreams)) {
+    for (const [file, meta] of Object.entries(pin.files)) {
+      const text = await fetchRaw(pin.repo, pin.commit, meta.path);
+      const actual = sha256(text);
+      if (actual !== meta.sha256) problems.push(`${name}/${file}: upstream at ${pin.commit} has sha256 ${actual}, pinned ${meta.sha256}`);
+    }
+  }
+  return problems;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [, , cmd, ...rest] = process.argv;
   try {
@@ -306,6 +323,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       const problems = checkPins();
       if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
       console.log("upstream/ matches tools/upstream.json");
+    } else if (cmd === "--verify-remote") {
+      const problems = await verifyRemote();
+      if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
+      console.log("every pinned file matches its upstream commit");
     } else if (cmd === "--bump" && rest.length === 2) {
       const r = await bump(rest[0], rest[1]);
       r.warnings.forEach((w) => console.warn(`warning: ${w}`));
@@ -318,7 +339,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       console.log(md);
       if (summary.results.some((r) => r.status === "failed")) process.exit(1);
     } else {
-      console.error("usage: node tools/sync.mjs --check | --bump <name> <commit> | --latest [--report <file>]");
+      console.error("usage: node tools/sync.mjs --check | --verify-remote | --bump <name> <commit> | --latest [--report <file>]");
       process.exit(2);
     }
   } catch (err) {
