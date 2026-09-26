@@ -141,7 +141,8 @@ The hook runs at `startup`, `clear`, `compact`, and `resume`.
   second copy in context.
 - If the rules ever seem missing, invoke `/adhd-unslop` or
   `$adhd-unslop:adhd-unslop`, or run the doctor. Invoking it while
-  always-on already delivered the rules adds a second, identical copy.
+  always-on already delivered the rules adds a second, identical copy, and
+  turns both modes back on, including one you had stopped.
 
 ### How the always-on hook works
 

@@ -1,15 +1,13 @@
 # Structure v2 proposal
 
-Status: revision 5, 2026-09-26. Revision 4 reached CONSENSUS in Codex
-adversarial review round 9 (`design/round-9-codex.md`) after REVISE verdicts
-in rounds 6 to 8. End-to-end tests of the first implementation then showed
-that the skill's reference reads were unreliable, so revision 5 embeds the
-upstream texts instead. It goes to review round 10. See "Revision 5" at the
-end. Research is in `design/research/`, summarized in
+Status: accepted 2026-09-26, revision 5. Revision 4 reached CONSENSUS in
+Codex adversarial review round 9 after REVISE verdicts in rounds 6 to 8.
+End-to-end tests of its first implementation showed that the skill's
+reference reads were unreliable, so revision 5 embeds the upstream texts
+instead. Revision 5 reached CONSENSUS in round 11 (`design/round-11-codex.md`)
+after a REVISE in round 10. Research is in `design/research/`, summarized in
 `design/research/00-synthesis.md`. Test results are in
-`design/research/07-tests-codex.md`, `08-tests-claude.md`,
-`09-tests-clear-compact.md`, `10-tests-hook-env.md`, and
-`11-tests-e2e.md`. D1 to D21 refer to
+`design/research/07-tests-codex.md` to `11-tests-e2e.md`. D1 to D21 refer to
 `design/DECISIONS.md` as of `fc308bd`.
 
 ## Goals
@@ -93,8 +91,10 @@ i-have-adhd block, the unslop block, and the final check. It reads no files.
   end-to-end check confirms that the whole skill arrives in both runtimes
   (`11`).
 - A user who invokes the skill while always-on already delivered the bundle
-  gets a second, identical copy. That costs tokens and changes nothing,
-  because the bundle rules treat a repeat as a repeat. The case is rare,
+  gets a second, identical copy of the rules, about 21,800 characters. It
+  adds no new rules. Invoking the skill still re-enables both modes, as the
+  lifecycle rules say, so a user who had stopped one mode gets it back. A
+  hook reload, by contrast, keeps the known mode states. The case is rare,
   since always-on makes invoking unnecessary.
 
 Result: `claude plugin install adhd-unslop@adhd-unslop` or
@@ -338,11 +338,13 @@ to `main`, and manual dispatch.
   - Claude Code: `validate --strict` on the marketplace and each plugin,
     `marketplace add` of the checkout, `install adhd-unslop@adhd-unslop`,
     and `list --json`. It asserts that only `adhd-unslop` installs, with the
-    expected version and no errors, and that its cache copy holds the skill,
-    both reference files, and the hooks.
+    expected version and no errors, and that its cache copy matches every
+    shipped file byte for byte, including the skill with both embedded
+    upstream blocks and the hooks.
   - Codex: `codex plugin marketplace add` of the checkout and `codex plugin
     add adhd-unslop@adhd-unslop`. It asserts that only `adhd-unslop` is in
-    the cache, and checks its cache copy the same way.
+    the cache, and that its cache copy matches every shipped file byte for
+    byte, the same way.
   - Both runtimes, second step: install `au-i-have-adhd` and `au-unslop` by
     name, and assert that each installs with its expected version and skill.
   - Codex, catalog: `app-server` with `initialize`, `plugin/list`, and
@@ -546,3 +548,10 @@ Revision 5 documents this instead of reshaping the skill:
   always-on, or to invoke the skill again after a compaction. A unit test
   reports the skill's size against the 20,000-character re-attach budget, so
   the gap stays visible.
+
+## Round 10 responses
+
+| Round 10 item | Response |
+| --- | --- |
+| Blocking 1, P9 still names reference files | P9 now asserts that each cache copy matches every shipped file byte for byte, including the skill with both embedded upstream blocks |
+| Blocking 2, "changes nothing" conflicts with the lifecycle | P1 now says the duplicate adds no rules, but invoking re-enables both modes, while a hook reload keeps the known states |

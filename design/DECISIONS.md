@@ -155,7 +155,9 @@ unslop block, and the final check. It reads no files.
   `$schema` (`research/07` C1). The end-to-end check confirms the whole
   skill arrives in both runtimes.
 - A user who invokes the skill while always-on already delivered the bundle
-  gets a second, identical copy. The bundle rules treat it as a repeat.
+  gets a second, identical copy of the rules. It adds no rules, but invoking
+  re-enables both modes, as the lifecycle rules say, so a mode the user had
+  stopped comes back. A hook reload keeps the known mode states.
 - Compaction limit: without always-on, Claude Code 2.1.283 re-attaches an
   invoked skill after `/compact` cut to 20,000 characters, which drops the
   last unslop rules and the final check, and after `--resume` then
