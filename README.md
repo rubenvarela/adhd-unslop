@@ -240,7 +240,9 @@ src/adhd-unslop/overlay/            hand-written overlay sections
 upstream/                           upstream files at the pinned commits
 tools/                              build.mjs, sync.mjs, plugins.json, upstream.json
 tests/                              node:test suite and tests/e2e/
-design/                             plans and review rounds
+design/DECISIONS.md                 decisions, reasons, and verified platform facts
+design/                             earlier plans, review rounds, and test runs
+AGENTS.md                           rules for agents; Claude Code and Codex both read it
 ```
 
 ## License
