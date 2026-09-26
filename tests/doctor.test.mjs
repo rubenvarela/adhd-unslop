@@ -169,7 +169,7 @@ describe("doctor failures", () => {
 });
 
 describe("doctor runtime detection and installed layouts", () => {
-  test("a Claude Code cache install: runtime claude, newest non-orphaned mirror, no Codex checks", () => {
+  test("a Claude Code cache install: runtime claude, mirror versions from the install record, no Codex checks", () => {
     const dirs = tempDirs();
     const cache = path.join(dirs.claude, "plugins", "cache", "adhd-unslop");
     const version = versionOf(path.join(plugins, "adhd-unslop"));
@@ -183,6 +183,11 @@ describe("doctor runtime detection and installed layouts", () => {
       fs.writeFileSync(p, JSON.stringify({ ...JSON.parse(fs.readFileSync(p, "utf8")), version: "9.9.9" }));
     }
     fs.writeFileSync(path.join(mirror, "9.9.9", ".orphaned_at"), "1");
+    // The record, not the newest cache folder, decides what is installed.
+    fs.writeFileSync(path.join(dirs.claude, "plugins", "installed_plugins.json"), JSON.stringify({
+      version: 2,
+      plugins: { "adhd-unslop@adhd-unslop": [{ scope: "user", version }], "au-unslop@adhd-unslop": [{ scope: "user", version: versionOf(path.join(plugins, "au-unslop")) }] },
+    }));
     fs.writeFileSync(path.join(dirs.codex, "config.toml"), "[features]\nhooks = false\n");
     const r = runDoctor(dirs, { root });
     assert.equal(r.status, 0, r.stdout);
@@ -232,6 +237,26 @@ describe("doctor optional mirrors", () => {
     for (const m of MIRRORS) assert.ok(r.lines.includes(`OK   ${m}: not installed (optional)`), r.stdout);
     assert.deepEqual(r.warns, []);
   });
+
+  for (const [label, content] of [
+    ["absent", null],
+    ["invalid JSON", "{not json"],
+    ["plugins: null", JSON.stringify({ version: 2, plugins: null })],
+    ["plugins as an array", JSON.stringify({ version: 2, plugins: [] })],
+  ]) {
+    test(`Claude Code: an ${label} install record makes the mirrors unknown, not installed`, () => {
+      const dirs = tempDirs();
+      const root = claudeCache(dirs);
+      const file = path.join(dirs.claude, "plugins", "installed_plugins.json");
+      if (content !== null) fs.writeFileSync(file, content);
+      const r = runDoctor(dirs, { root });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.equal(r.stderr, "");
+      for (const m of MIRRORS) assert.ok(r.has(new RegExp(`^OK {3}${m}: unknown, because the Claude Code install record .* is missing or unreadable \\(optional\\)$`)), r.stdout);
+      assert.deepEqual(r.warns, []);
+      assert.deepEqual(r.fails, []);
+    });
+  }
 
   test("Claude Code: the install record lists an installed mirror", () => {
     const dirs = tempDirs();

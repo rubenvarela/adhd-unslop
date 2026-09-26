@@ -148,6 +148,8 @@ if (manifest && typeof manifest.version === "string") {
 }
 
 // 3. Optional mirrors. Never WARN or FAIL: adhd-unslop does not need them.
+// Returns the installed version, null when not installed, or UNKNOWN.
+const UNKNOWN = Symbol("unknown");
 function mirrorVersion(name) {
   // Repo checkout: plugins/<name>/ next to plugins/adhd-unslop/.
   const sibling = path.join(root, "..", name);
@@ -156,18 +158,18 @@ function mirrorVersion(name) {
   // Claude Code keeps cache folders for plugins that are not installed, so
   // its install record decides. installed_plugins.json maps
   // "<plugin>@<marketplace>" to a list of installs, each with a version.
+  // Without a readable record the answer is unknown: the cache would guess.
   if (runtime === "claude") {
     const record = readJson(path.join(claudeDir, "plugins", "installed_plugins.json"));
-    if (record && typeof record.plugins === "object") {
-      const installs = record.plugins[`${name}@${MARKETPLACE}`];
-      const versions = (Array.isArray(installs) ? installs : []).map((i) => i?.version).filter((v) => typeof v === "string").sort(compareVersions);
-      return versions.at(-1) ?? null;
-    }
+    const plugins = record && typeof record === "object" ? record.plugins : null;
+    if (!plugins || typeof plugins !== "object" || Array.isArray(plugins)) return UNKNOWN;
+    const installs = plugins[`${name}@${MARKETPLACE}`];
+    const versions = (Array.isArray(installs) ? installs : []).map((i) => i?.version).filter((v) => typeof v === "string").sort(compareVersions);
+    return versions.at(-1) ?? null;
   }
   // Codex removes a plugin's cache folder when the plugin is removed, so the
-  // cache decides: <cache>/<marketplace>/<name>/<version>/. Claude Code, when
-  // its install record is missing, falls back to this too, skipping versions
-  // it marked with .orphaned_at.
+  // cache decides: <cache>/<marketplace>/<name>/<version>/, skipping versions
+  // marked with .orphaned_at.
   const base = path.join(root, "..", "..", name);
   let entries = [];
   try {
@@ -184,7 +186,8 @@ function mirrorVersion(name) {
 }
 for (const name of MIRRORS) {
   const v = mirrorVersion(name);
-  ok(v ? `${name}: installed (${v})` : `${name}: not installed (optional)`);
+  if (v === UNKNOWN) ok(`${name}: unknown, because the Claude Code install record ${path.join(claudeDir, "plugins", "installed_plugins.json")} is missing or unreadable (optional)`);
+  else ok(v ? `${name}: installed (${v})` : `${name}: not installed (optional)`);
 }
 
 // 4. Always-on switch and flag files. 5. Chunks.
