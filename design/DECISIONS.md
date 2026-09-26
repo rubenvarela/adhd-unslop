@@ -529,6 +529,25 @@ raises the pins in `tools/cli-versions.json`, and starts `verify.yml` on it.
   generated.
 - No Markdown lint: upstream text must stay verbatim (D2).
 
+### D30. Codex usage defaults
+
+Codex model runs bill to the user's ChatGPT plan, which has a 5-hour and a
+weekly limit. On 2026-09-26, review rounds at `xhigh` (80,000 to 240,000
+tokens each) plus the e2e runs used 30% of the 5-hour window in ten minutes.
+
+- Reviews run `gpt-5.6-terra` at `high` through `design/run-codex.sh`.
+  `xhigh` only when the user asks. The weakest model, `gpt-5.6-luna`, is not
+  used for adversarial review.
+- Tests run `gpt-5.6-luna` at `low`. The e2e checks read arrival from the
+  rollout, so model quality barely matters.
+- `tools/codex-usage.mjs --gate` reads the plan usage that Codex records in
+  its newest session log and exits 3 at 80% of either window. The review
+  script and the e2e script check it before model runs. At 80% of the 5-hour
+  window Codex work pauses until the reset; at 80% of the weekly window the
+  agent asks the user.
+- Codex never switches to another auth, such as `OPENAI_API_KEY`, without
+  the user's yes.
+
 ## Platform facts
 
 Verified on the versions at the top of this file. Re-check after upgrades,

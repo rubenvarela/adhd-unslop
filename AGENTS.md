@@ -86,15 +86,37 @@ this file from Claude Code.
   `</dev/null`. `codex review` takes no custom prompt, so use `codex exec`.
 - `--dangerously-bypass-hook-trust` is for throwaway homes only.
 
+## Codex usage
+
+Codex model runs bill to the user's ChatGPT plan, which has a 5-hour and a
+weekly limit. Keep to these defaults unless the user says otherwise:
+
+- Adversarial reviews: `design/run-codex.sh <round>`, which runs
+  `gpt-5.6-terra` at `high` effort. Use `xhigh` only when the user asks.
+  One xhigh round used up to 240,000 tokens.
+- Tests and other scripted `codex exec` calls: `gpt-5.6-luna` at `low`
+  effort. The e2e checks read what arrived in the rollout, so model quality
+  barely matters. `tests/e2e/run.sh` takes `CODEX_MODEL` and `CODEX_EFFORT`.
+- Keyless Codex steps, such as `marketplace add`, `plugin add`, and
+  `app-server` `plugin/list`, `plugin/read`, and `hooks/list`, cost nothing.
+- Before a model run, check `node tools/codex-usage.mjs --gate`. It reads
+  the newest session log and exits 3 at 80% of either window. At 80% of the
+  5-hour window, pause Codex model runs until the reset it prints and keep
+  working on everything else. At 80% of the weekly window, stop and ask the
+  user.
+- Never switch Codex to another auth, such as `OPENAI_API_KEY`, without the
+  user's yes. It bills a different account.
+
 ## Changes and releases
 
 - Work on a branch and open a PR. `verify.yml` runs the unit tests,
   `build.mjs --check`, the version gate, the keyless load check, and
   workflow linting.
 - For a design change, write the proposal under `design/` and run Codex
-  adversarial review rounds, `design/round-N-prompt.md` and
-  `round-N-codex.md`, until the verdict is CONSENSUS. Record the result in
-  `design/DECISIONS.md`.
+  adversarial review rounds with `design/run-codex.sh <N>`, which reads
+  `design/round-N-prompt.md` and writes `round-N-codex.md`, until the
+  verdict is CONSENSUS, up to 25 rounds. Review the implementation the same
+  way before merging. Record the result in `design/DECISIONS.md`.
 - Review each `upstream-bump` PR for new conflicts between the two skills.
   Record any new conflict in the outcome table in
   `src/adhd-unslop/overlay/10-precedence.md`.
