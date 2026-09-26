@@ -3,11 +3,16 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, test } from "node:test";
-import { repo, read, tempPlugin, tempConfigDirs } from "./helpers.mjs";
-import { chunkHeader, chunkFooter, bundleId, renderChunk, flagPaths, estimateTokens, TOTAL_CHUNKS, FLAG_NAME } from "../hooks/lib.mjs";
+import os from "node:os";
+import { pluginRoot, readPlugin, tempPlugin, tempConfigDirs } from "./helpers.mjs";
+import { chunkHeader, chunkFooter, bundleId, renderChunk, flagPaths, estimateTokens, TOTAL_CHUNKS, FLAG_NAME, missingDependencies, runtimeOf, dependencyWarning } from "../plugins/adhd-unslop/hooks/lib.mjs";
+import { compose } from "../tools/build.mjs";
+
+const repo = pluginRoot;
+const read = readPlugin;
 
 const hooksJson = JSON.parse(read("hooks", "hooks.json"));
-const group = hooksJson.hooks.SessionStart[0];
+const [group, depGroup] = hooksJson.hooks.SessionStart;
 const handlers = group.hooks;
 
 function runHandler(n, { root, env = {}, rootVar = "CLAUDE_PLUGIN_ROOT" }) {
@@ -23,6 +28,13 @@ function optIn(dir) {
 }
 
 describe("hooks.json", () => {
+  test("two SessionStart groups: always-on chunks, then the dependency check", () => {
+    assert.equal(hooksJson.hooks.SessionStart.length, 2);
+    assert.equal(depGroup.hooks.length, 1);
+    assert.match(depGroup.matcher, /\bstartup\b/);
+    assert.ok(depGroup.hooks[0].command.includes("check-deps.mjs"));
+  });
+
   test("three synchronous handlers, one per chunk, all four start sources", () => {
     assert.equal(handlers.length, TOTAL_CHUNKS);
     for (const src of ["startup", "resume", "clear", "compact"]) assert.match(group.matcher, new RegExp(`\\b${src}\\b`));
@@ -89,9 +101,7 @@ describe("always-on launcher", () => {
         assert.match(header, /do not activate from the partial set/);
         joined += r.stdout.slice(header.length, r.stdout.length - footer.length);
       }
-      const skill = read("skills", "adhd-unslop", "SKILL.md");
-      const body = skill.replace(/^---\n[\s\S]*?\n---\n/, "");
-      assert.equal(joined, body);
+      assert.equal(joined, compose().hookBody);
     });
   }
 
@@ -149,5 +159,70 @@ describe("always-on launcher", () => {
   test("token estimate is the shared function", () => {
     assert.equal(estimateTokens("abcd"), 1);
     assert.equal(estimateTokens("abcde"), 2);
+  });
+});
+
+// Build a fake plugin cache: <base>/<marketplace>/<plugin>/<version>/ for each name.
+function fakeCache(base, names) {
+  const mkt = path.join(base, "plugins", "cache", "adhd-unslop");
+  for (const name of names) fs.mkdirSync(path.join(mkt, name, "0.1.0"), { recursive: true });
+  const root = path.join(mkt, "adhd-unslop", "0.2.0");
+  fs.cpSync(path.join(pluginRoot, "hooks"), path.join(root, "hooks"), { recursive: true });
+  return root;
+}
+
+function runDepCheck(root, env = {}) {
+  const cleanEnv = { PATH: process.env.PATH, HOME: "/nonexistent-home", PLUGIN_ROOT: root, ...env };
+  return spawnSync("sh", ["-c", depGroup.hooks[0].command], { env: cleanEnv, encoding: "utf8" });
+}
+
+describe("dependency check", () => {
+  const deps = JSON.parse(read("hooks", "dependencies.json")).plugins;
+
+  test("silent in this checkout, where siblings sit next to the plugin", () => {
+    assert.deepEqual(missingDependencies(pluginRoot).plugins, []);
+    const r = runDepCheck(pluginRoot);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, "");
+  });
+
+  for (const runtime of ["codex", "claude"]) {
+    test(`${runtime} cache: silent when present, warns with the ${runtime} command when missing`, () => {
+      const home = fs.mkdtempSync(path.join(os.tmpdir(), "adhd-unslop-deps-"));
+      const configDir = path.join(home, runtime === "codex" ? ".codex" : ".claude");
+      const env = runtime === "codex" ? { CODEX_HOME: configDir } : { CLAUDE_CONFIG_DIR: configDir };
+
+      const full = fakeCache(configDir, deps);
+      let r = runDepCheck(full, env);
+      assert.equal(r.status, 0);
+      assert.equal(r.stdout, "");
+
+      fs.rmSync(path.join(full, "..", "..", deps[0]), { recursive: true });
+      r = runDepCheck(full, env);
+      assert.equal(r.status, 0);
+      const out = JSON.parse(r.stdout);
+      const msg = out.systemMessage;
+      assert.equal(out.hookSpecificOutput.hookEventName, "SessionStart");
+      assert.ok(out.hookSpecificOutput.additionalContext.endsWith(msg));
+      assert.ok(msg.includes(deps[0]) && !msg.includes(deps[1]), msg);
+      const cmd = runtime === "codex" ? `codex plugin add ${deps[0]}@adhd-unslop` : `claude plugin install ${deps[0]}@adhd-unslop`;
+      assert.ok(msg.includes(cmd), msg);
+      assert.equal(runtimeOf(full, env, "/nonexistent-home"), runtime);
+    });
+  }
+
+  test("unknown runtime lists both install commands", () => {
+    const msg = dependencyWarning("/somewhere/else", { marketplace: "adhd-unslop", plugins: ["au-unslop"] }, {}, "/h");
+    assert.match(msg, /claude plugin install au-unslop@adhd-unslop/);
+    assert.match(msg, /codex plugin add au-unslop@adhd-unslop/);
+  });
+
+  test("a broken install never fails the session", () => {
+    const root = tempPlugin();
+    fs.rmSync(path.join(root, "hooks", "dependencies.json"));
+    const r = runDepCheck(root);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, "");
+    assert.equal(runDepCheck(path.join(root, "nope")).status, 0);
   });
 });

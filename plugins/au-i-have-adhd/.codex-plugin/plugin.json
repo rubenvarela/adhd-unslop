@@ -1,0 +1,25 @@
+{
+  "name": "au-i-have-adhd",
+  "version": "0.1.0",
+  "description": "Pinned copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
+  "author": {
+    "name": "Rubén Varela"
+  },
+  "license": "MIT",
+  "keywords": [
+    "adhd",
+    "output-style",
+    "skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "i-have-adhd (pinned)",
+    "shortDescription": "Replies shaped for a reader with ADHD",
+    "longDescription": "A pinned copy of ayghri/i-have-adhd, used by adhd-unslop. The skill body is unchanged from upstream.",
+    "developerName": "Rubén Varela",
+    "category": "Productivity",
+    "capabilities": [
+      "Instructions"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "generatedBy": "tools/build.mjs",
+  "compositeSha256": "f9f2ebb786eb7c7eff9ec8cef99010dda5dc8832235aa81539f510c9210b55e8",
+  "chunks": [
+    {
+      "index": 1,
+      "file": "1.md",
+      "sha256": "374a69fa1b16ee5f35398312f4e8b56784625b5a20eede94d9c6463c70ecfd31",
+      "bytes": 7618,
+      "utf16Units": 7618
+    },
+    {
+      "index": 2,
+      "file": "2.md",
+      "sha256": "2b1824a9c594487b8f63511e1f1327e48e6a6f3ae67e76e6acb1fb91f651b22b",
+      "bytes": 6947,
+      "utf16Units": 6947
+    },
+    {
+      "index": 3,
+      "file": "3.md",
+      "sha256": "867d5e6f2423d46bebf7b8802fbf187630707c3bfaffbe5947872c78cdc6f588",
+      "bytes": 7000,
+      "utf16Units": 6998
+    }
+  ]
+}

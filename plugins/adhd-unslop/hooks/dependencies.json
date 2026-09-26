@@ -1,0 +1,7 @@
+{
+  "marketplace": "adhd-unslop",
+  "plugins": [
+    "au-i-have-adhd",
+    "au-unslop"
+  ]
+}

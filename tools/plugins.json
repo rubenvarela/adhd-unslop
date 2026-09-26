@@ -1,0 +1,97 @@
+{
+  "marketplace": {
+    "name": "adhd-unslop",
+    "displayName": "ADHD Unslop",
+    "description": "i-have-adhd and unslop together, with ADHD winning in direct replies and unslop winning in other writing.",
+    "owner": {
+      "name": "Rubén Varela"
+    }
+  },
+  "author": {
+    "name": "Rubén Varela"
+  },
+  "plugins": [
+    {
+      "name": "au-i-have-adhd",
+      "version": "0.1.0",
+      "kind": "vendored",
+      "upstream": "i-have-adhd",
+      "skill": "i-have-adhd",
+      "category": "productivity",
+      "description": "Pinned copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
+      "skillDescription": "Shape replies for a reader with ADHD. Load only when the user invokes it (/au-i-have-adhd:i-have-adhd in Claude Code, $au-i-have-adhd:i-have-adhd in Codex) or another skill, such as adhd-unslop, tells you to.",
+      "keywords": [
+        "adhd",
+        "output-style",
+        "skills"
+      ],
+      "codexInterface": {
+        "displayName": "i-have-adhd (pinned)",
+        "shortDescription": "Replies shaped for a reader with ADHD",
+        "longDescription": "A pinned copy of ayghri/i-have-adhd, used by adhd-unslop. The skill body is unchanged from upstream.",
+        "capabilities": [
+          "Instructions"
+        ]
+      }
+    },
+    {
+      "name": "au-unslop",
+      "version": "0.1.0",
+      "kind": "vendored",
+      "upstream": "unslop",
+      "skill": "unslop",
+      "category": "productivity",
+      "description": "Pinned copy of the unslop skill from pstack-claude by Michael Denyer (github.com/michael-denyer/pstack-claude). Removes AI patterns from writing.",
+      "skillDescription": "Remove AI patterns from writing. Load only when the user invokes it (/au-unslop:unslop in Claude Code, $au-unslop:unslop in Codex) or another skill, such as adhd-unslop, tells you to.",
+      "keywords": [
+        "unslop",
+        "writing",
+        "skills"
+      ],
+      "codexInterface": {
+        "displayName": "unslop (pinned)",
+        "shortDescription": "Removes AI patterns from writing",
+        "longDescription": "A pinned copy of the unslop skill from michael-denyer/pstack-claude, used by adhd-unslop. The skill body is unchanged from upstream.",
+        "capabilities": [
+          "Instructions"
+        ]
+      }
+    },
+    {
+      "name": "adhd-unslop",
+      "version": "0.2.0",
+      "kind": "composed",
+      "embeds": [
+        "i-have-adhd",
+        "unslop"
+      ],
+      "category": "productivity",
+      "description": "i-have-adhd and unslop in one skill with a defined tie-breaker: ADHD shape wins in direct replies, unslop wins everywhere else.",
+      "marketplaceDescription": "ADHD-friendly replies plus unslopped writing, with a defined tie-breaker.",
+      "keywords": [
+        "adhd",
+        "unslop",
+        "output-style",
+        "writing",
+        "skills",
+        "codex"
+      ],
+      "codexInterface": {
+        "displayName": "ADHD Unslop",
+        "shortDescription": "ADHD-friendly replies, unslopped writing, one tie-breaker",
+        "longDescription": "Combines the i-have-adhd and unslop skills. Both rule sets stay active. On a conflict, i-have-adhd wins in a direct reply to the user and unslop wins in any other writing.",
+        "capabilities": [
+          "Instructions"
+        ],
+        "defaultPrompt": [
+          "Use $adhd-unslop:adhd-unslop for this session."
+        ],
+        "brandColor": "#2563EB"
+      },
+      "dependencies": [
+        "au-i-have-adhd",
+        "au-unslop"
+      ]
+    }
+  ]
+}

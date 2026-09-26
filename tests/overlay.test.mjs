@@ -3,11 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, test } from "node:test";
 import { repo, read, proseOnly } from "./helpers.mjs";
-import { ruleNumbers, overlayCitations } from "../tools/sync.mjs";
-import { stripFrontmatter } from "../hooks/lib.mjs";
+import { ruleNumbers, overlayCitations, CITATION_KINDS, citedNumbers } from "../tools/sync.mjs";
+import { stripFrontmatter } from "../plugins/adhd-unslop/hooks/lib.mjs";
 
-const overlayFiles = fs.readdirSync(path.join(repo, "overlay")).filter((f) => f.endsWith(".md")).sort();
-const overlayText = overlayFiles.map((f) => read("overlay", f)).join("\n");
+const overlayDir = ["src", "adhd-unslop", "overlay"];
+const overlayFiles = fs.readdirSync(path.join(repo, ...overlayDir)).filter((f) => f.endsWith(".md")).sort();
+const overlayText = overlayFiles.map((f) => read(...overlayDir, f)).join("\n");
 const prose = proseOnly(overlayText);
 
 const RULE7 = ["additionally", "crucial", "delve", "enduring", "enhance", "fostering", "garner", "interplay", "intricate", "landscape", "pivotal", "showcase", "tapestry", "testament", "underscore", "vibrant"];
@@ -40,8 +41,8 @@ describe("overlay prose passes the mechanical unslop checks", () => {
 });
 
 describe("precedence and lifecycle content", () => {
-  const precedence = read("overlay", "10-precedence.md");
-  const lifecycle = read("overlay", "20-lifecycle.md");
+  const precedence = read(...overlayDir, "10-precedence.md");
+  const lifecycle = read(...overlayDir, "20-lifecycle.md");
   test("names both surfaces and the tie-breaker", () => {
     assert.match(precedence, /Direct reply\./);
     assert.match(precedence, /Other writing\./);
@@ -68,6 +69,24 @@ describe("precedence and lifecycle content", () => {
       const existing = new Set(ruleNumbers(name, body));
       for (const n of overlayCitations(name)) assert.ok(existing.has(n), `${name} rule ${n} cited but missing upstream`);
     }
+  });
+  test("every exception, check, and process step the overlay cites exists upstream", () => {
+    for (const kind of CITATION_KINDS) {
+      const existing = new Set(kind.numbers(stripFrontmatter(read("upstream", kind.upstream, "SKILL.md"))));
+      assert.ok(existing.size > 0, `${kind.label} list found upstream`);
+      for (const n of citedNumbers(kind.label)) assert.ok(existing.has(n), `${kind.label} ${n} cited but missing upstream`);
+    }
+  });
+  test("load step names both vendored skills and the missing-skill fallback", () => {
+    const load = read(...overlayDir, "05-load.md");
+    for (const name of ["`au-i-have-adhd:i-have-adhd`", "`au-unslop:unslop`"]) assert.ok(load.includes(name), name);
+    assert.match(load, /Skill tool/);
+    assert.match(load, /claude plugin install <plugin>@adhd-unslop/);
+    assert.match(load, /codex plugin add <plugin>@adhd-unslop/);
+    assert.match(load, /BEGIN upstream/);
+  });
+  test("no passage assumes the upstream texts are embedded in the skill", () => {
+    assert.doesNotMatch(overlayText, /appear (below|above)|embedded upstream/i);
   });
   test("cites the conflicts the plan identified", () => {
     const cited = overlayCitations("unslop");
