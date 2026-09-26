@@ -6,6 +6,8 @@
 //                                               check dependencies and rule citations, swap in,
 //                                               raise plugin versions, build and test,
 //                                               promote on success, restore on failure
+//   node tools/sync.mjs --verify-remote         refetch every pinned file at its pinned commit and
+//                                               compare it with the pinned sha256
 //   node tools/sync.mjs --latest [--report <file>]
 //                                               bump every upstream whose pinned files changed
 //                                               on its default branch, write a Markdown report,
@@ -18,7 +20,8 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { sha256, stripFrontmatter } from "../plugins/adhd-unslop/hooks/lib.mjs";
+import { sha256, stripFrontmatter } from "../src/adhd-unslop/hooks/lib.mjs";
+import { GENERATED_ROOTS, upstreamsShipped } from "./build.mjs";
 
 const repo = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pinsPath = path.join(repo, "tools", "upstream.json");
@@ -54,6 +57,10 @@ export function dependencyHits(body) {
   return hits;
 }
 
+// Upstream files are kept byte for byte, so a body may use CRLF. Every reader
+// below works on LF.
+const lf = (text) => text.replace(/\r\n/g, "\n");
+
 // Numbered items in the section that starts with `heading`, up to the next `## `.
 function listNumbers(body, heading) {
   const start = body.indexOf(`\n${heading}\n`);
@@ -67,11 +74,11 @@ function listNumbers(body, heading) {
 // Every citation label the overlay may use, the upstream it points into, and
 // how to read the numbers that exist in that upstream body.
 export const CITATION_KINDS = [
-  { label: "ADHD rule", upstream: "i-have-adhd", numbers: (b) => [...b.matchAll(/^### (\d+)\. /gm)].map((m) => Number(m[1])) },
-  { label: "ADHD exception", upstream: "i-have-adhd", numbers: (b) => listNumbers(b, "## When to break the rules") },
-  { label: "ADHD check", upstream: "i-have-adhd", numbers: (b) => listNumbers(b, "## Pre-send check") },
-  { label: "unslop rule", upstream: "unslop", numbers: (b) => [...b.matchAll(/^(\d+)\. \*\*/gm)].map((m) => Number(m[1])) },
-  { label: "unslop process", upstream: "unslop", numbers: (b) => listNumbers(b, "## Process") },
+  { label: "ADHD rule", upstream: "i-have-adhd", numbers: (b) => [...lf(b).matchAll(/^### (\d+)\. /gm)].map((m) => Number(m[1])) },
+  { label: "ADHD exception", upstream: "i-have-adhd", numbers: (b) => listNumbers(lf(b), "## When to break the rules") },
+  { label: "ADHD check", upstream: "i-have-adhd", numbers: (b) => listNumbers(lf(b), "## Pre-send check") },
+  { label: "unslop rule", upstream: "unslop", numbers: (b) => [...lf(b).matchAll(/^(\d+)\. \*\*/gm)].map((m) => Number(m[1])) },
+  { label: "unslop process", upstream: "unslop", numbers: (b) => listNumbers(lf(b), "## Process") },
 ];
 
 const kindFor = (label) => CITATION_KINDS.find((k) => k.label === label);
@@ -144,10 +151,10 @@ export function bumpPatch(version) {
   return `${m[1]}.${m[2]}.${Number(m[3]) + 1}`;
 }
 
-// Plugins whose shipped text includes this upstream: its vendored copy and any
-// composed plugin that embeds it in hook chunks.
+// Plugins whose shipped text includes one of these upstreams: its mirror, any
+// skill that embeds it, and any always-on chunk that carries it.
 export function pluginsEmbedding(config, names) {
-  return config.plugins.filter((p) => names.some((n) => p.upstream === n || p.embeds?.includes(n))).map((p) => p.name);
+  return config.plugins.filter((p) => upstreamsShipped(p).some((n) => names.includes(n))).map((p) => p.name);
 }
 
 // Raise each affected plugin's patch version once, however many upstreams changed.
@@ -166,7 +173,7 @@ function buildAndTest() {
   run("node", ["--test", ...fs.readdirSync(path.join(repo, "tests")).filter((f) => f.endsWith(".test.mjs")).map((f) => path.join("tests", f))]);
 }
 
-const GENERATED = ["plugins", ".claude-plugin", ".agents/plugins"];
+const GENERATED = GENERATED_ROOTS;
 
 // Copy everything a bump can change, and return a function that puts it back.
 function snapshot(label) {
@@ -241,9 +248,13 @@ export async function bump(name, commit, { versions = true, fetched } = {}) {
   return { name, from, to: commit, warnings, versions: raised };
 }
 
+// Bumps every changed upstream. Returns { results, versions }. When the final
+// version raise and build fail, restores everything to its state before the
+// run, so a partial bump is never left in the checkout, and throws.
 export async function latest() {
   const pins = readPins();
   const results = [];
+  const before = snapshot("latest");
   for (const [name, pin] of Object.entries(pins.upstreams)) {
     try {
       const sha = await latestCommit(pin);
@@ -266,11 +277,17 @@ export async function latest() {
   const bumped = results.filter((r) => r.status === "bumped").map((r) => r.name);
   let versions = [];
   if (bumped.length) {
-    const config = readConfig();
-    versions = raiseVersions(config, bumped);
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-    buildAndTest();
+    try {
+      const config = readConfig();
+      versions = raiseVersions(config, bumped);
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+      buildAndTest();
+    } catch (err) {
+      before.restore();
+      throw new Error(`raising versions after ${bumped.join(", ")} failed and every bump was rolled back (${err.message})`);
+    }
   }
+  before.discard();
   return { results, versions };
 }
 
@@ -299,26 +316,63 @@ export function reportMarkdown({ results, versions }, pins = readPins()) {
   return lines.join("\n");
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Refetch each pinned file at its pinned commit and compare it with the pin.
+// Catches a hand edit to upstream/ that also rewrote the sha256 in the pin.
+export async function verifyRemote(pins = readPins()) {
+  const problems = [];
+  for (const [name, pin] of Object.entries(pins.upstreams)) {
+    for (const [file, meta] of Object.entries(pin.files)) {
+      const text = await fetchRaw(pin.repo, pin.commit, meta.path);
+      const actual = sha256(text);
+      if (actual !== meta.sha256) problems.push(`${name}/${file}: upstream at ${pin.commit} has sha256 ${actual}, pinned ${meta.sha256}`);
+    }
+  }
+  return problems;
+}
+
+// True when this file is the script node was asked to run. Compares real paths,
+// so a run through a symlinked checkout still counts.
+function isMain() {
+  try {
+    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) {
   const [, , cmd, ...rest] = process.argv;
   try {
     if (cmd === "--check") {
       const problems = checkPins();
       if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
       console.log("upstream/ matches tools/upstream.json");
+    } else if (cmd === "--verify-remote") {
+      const problems = await verifyRemote();
+      if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
+      console.log("every pinned file matches its upstream commit");
     } else if (cmd === "--bump" && rest.length === 2) {
       const r = await bump(rest[0], rest[1]);
       r.warnings.forEach((w) => console.warn(`warning: ${w}`));
       console.log(`promoted ${r.name} to ${r.to}; new versions: ${r.versions.join(", ") || "none"}. Review: git diff`);
     } else if (cmd === "--latest") {
       const i = rest.indexOf("--report");
-      const summary = await latest();
+      const reportFile = i >= 0 ? rest[i + 1] : null;
+      let summary;
+      try {
+        summary = await latest();
+      } catch (err) {
+        // Write a report anyway, so the workflow's issue step has something to post.
+        const md = ["# Upstream bump failed", "", "```", err.message, "```", ""].join("\n");
+        if (reportFile) fs.writeFileSync(reportFile, md);
+        throw err;
+      }
       const md = reportMarkdown(summary);
-      if (i >= 0 && rest[i + 1]) fs.writeFileSync(rest[i + 1], md);
+      if (reportFile) fs.writeFileSync(reportFile, md);
       console.log(md);
       if (summary.results.some((r) => r.status === "failed")) process.exit(1);
     } else {
-      console.error("usage: node tools/sync.mjs --check | --bump <name> <commit> | --latest [--report <file>]");
+      console.error("usage: node tools/sync.mjs --check | --verify-remote | --bump <name> <commit> | --latest [--report <file>]");
       process.exit(2);
     }
   } catch (err) {

@@ -1,9 +1,9 @@
 # Restructure plan: one marketplace, several plugins
 
-Status: implemented and merged 2026-09-26 (PR #1), including step 7. The
-first upstream bump merged as PR #2. `DECISIONS.md` has the distilled
-decisions and supersedes this file where they disagree. This file keeps
-the test runs and the reasoning at the time.
+Status: implemented in 0.2.0 and merged 2026-09-26 (PR #1, #2). Superseded
+for 0.3.0 by `STRUCTURE-v2.md`, which removed the plugin dependencies this
+plan introduced. `DECISIONS.md` has the current decisions. This file keeps
+the 0.2.0 test runs and the reasoning at the time.
 
 ## Where the implementation differs
 

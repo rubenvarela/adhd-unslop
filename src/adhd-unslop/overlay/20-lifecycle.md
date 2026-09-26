@@ -29,7 +29,7 @@ Confirm each change in one line that names which modes are now active. Quoted or
 
 A newly completed bundle with a different hash replaces the rules without resetting mode states. Repeated chunks from an older bundle do not reactivate that bundle.
 
-**Persistence.** Active modes stay active for the rest of the session, including across topic changes. If you are unsure whether a mode is still active, treat it as active. The always-on hook also runs on resume and compact to restore these instructions after context loss.
+**Persistence.** Active modes stay active for the rest of the session, including across topic changes. If you are unsure whether a mode is still active, treat it as active. The always-on hook also runs on compact, and on resume in Codex, to restore these instructions after context loss.
 
 **Known limitation.** Mode state exists only in the conversation. Compaction or resume can lose it. Reinjection restores the instructions without recovering lost state, so it may restore the active defaults. A stop command may need repeating.
 

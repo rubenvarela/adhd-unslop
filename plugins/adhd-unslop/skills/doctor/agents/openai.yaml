@@ -1,0 +1,6 @@
+interface:
+  display_name: "adhd-unslop doctor"
+  short_description: "Checks an adhd-unslop install and prints fixes"
+
+policy:
+  allow_implicit_invocation: false

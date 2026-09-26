@@ -1,13 +1,19 @@
 {
   "name": "adhd-unslop",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "i-have-adhd and unslop in one skill with a defined tie-breaker: ADHD shape wins in direct replies, unslop wins everywhere else.",
   "author": {
     "name": "Rubén Varela"
   },
+  "homepage": "https://github.com/rubenvarela/adhd-unslop",
+  "repository": "https://github.com/rubenvarela/adhd-unslop",
   "license": "MIT",
-  "dependencies": [
-    "au-i-have-adhd",
-    "au-unslop"
+  "keywords": [
+    "adhd",
+    "unslop",
+    "output-style",
+    "writing",
+    "skills",
+    "codex"
   ]
 }

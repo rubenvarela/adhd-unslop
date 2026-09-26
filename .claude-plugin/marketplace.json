@@ -8,24 +8,21 @@
   "plugins": [
     {
       "name": "au-i-have-adhd",
-      "description": "Pinned copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
+      "description": "Pinned, unchanged copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
       "source": "./plugins/au-i-have-adhd",
-      "category": "productivity",
-      "version": "0.1.0"
+      "category": "productivity"
     },
     {
       "name": "au-unslop",
-      "description": "Pinned copy of the unslop skill from pstack-claude by Michael Denyer (github.com/michael-denyer/pstack-claude). Removes AI patterns from writing.",
+      "description": "Pinned, unchanged copy of the unslop skill from pstack-claude by Michael Denyer (github.com/michael-denyer/pstack-claude). Removes AI patterns from writing.",
       "source": "./plugins/au-unslop",
-      "category": "productivity",
-      "version": "0.1.1"
+      "category": "productivity"
     },
     {
       "name": "adhd-unslop",
       "description": "ADHD-friendly replies plus unslopped writing, with a defined tie-breaker.",
       "source": "./plugins/adhd-unslop",
-      "category": "productivity",
-      "version": "0.2.2"
+      "category": "productivity"
     }
   ]
 }

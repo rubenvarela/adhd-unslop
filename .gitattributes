@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+# Upstream skill files stay byte for byte as fetched.
+upstream/** -text
+
+# Written by tools/build.mjs. Edit the sources instead. Stored byte for byte,
+# like upstream/, so a mirror of a CRLF upstream stays identical to it.
+plugins/** -text linguist-generated=true
+.claude-plugin/marketplace.json -text linguist-generated=true
+.agents/plugins/marketplace.json -text linguist-generated=true

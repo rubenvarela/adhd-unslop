@@ -3,4 +3,4 @@ interface:
   short_description: "Replies shaped for a reader with ADHD"
 
 policy:
-  allow_implicit_invocation: true
+  allow_implicit_invocation: false

@@ -1,9 +1,16 @@
 {
   "name": "au-i-have-adhd",
-  "version": "0.1.0",
-  "description": "Pinned copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
+  "version": "0.2.0",
+  "description": "Pinned, unchanged copy of the i-have-adhd skill by Ayoub Ghriss (github.com/ayghri/i-have-adhd). Shapes replies for a reader with ADHD.",
   "author": {
     "name": "Rubén Varela"
   },
-  "license": "MIT"
+  "homepage": "https://github.com/rubenvarela/adhd-unslop",
+  "repository": "https://github.com/rubenvarela/adhd-unslop",
+  "license": "MIT",
+  "keywords": [
+    "adhd",
+    "output-style",
+    "skills"
+  ]
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { bumpPatch, pluginsEmbedding, raiseVersions, reportMarkdown, citationReport } from "../tools/sync.mjs";
-import { stripFrontmatter } from "../plugins/adhd-unslop/hooks/lib.mjs";
+import { bumpPatch, pluginsEmbedding, raiseVersions, reportMarkdown, citationReport, CITATION_KINDS } from "../tools/sync.mjs";
+import { stripFrontmatter } from "../src/adhd-unslop/hooks/lib.mjs";
 import { read } from "./helpers.mjs";
 
 const config = () => JSON.parse(read("tools", "plugins.json"));
@@ -37,6 +37,15 @@ describe("citation gate", () => {
     const body = stripFrontmatter(read("upstream", "i-have-adhd", "SKILL.md"));
     const { failures } = citationReport("i-have-adhd", body, body.replace(/^6\. A rule fights the harness.*\n/m, ""));
     assert.deepEqual(failures, ["the overlay cites ADHD exception 6, which no longer exists upstream"]);
+  });
+
+  test("a CRLF body reads the same numbers and passes the gate", () => {
+    for (const name of ["unslop", "i-have-adhd"]) {
+      const body = stripFrontmatter(read("upstream", name, "SKILL.md"));
+      const crlf = body.replace(/\n/g, "\r\n");
+      assert.deepEqual(citationReport(name, body, crlf), { warnings: [], failures: [] }, name);
+      for (const kind of CITATION_KINDS.filter((k) => k.upstream === name)) assert.deepEqual(kind.numbers(crlf), kind.numbers(body), kind.label);
+    }
   });
 
   test("an unchanged body passes", () => {

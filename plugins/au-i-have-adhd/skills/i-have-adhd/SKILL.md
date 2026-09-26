@@ -1,6 +1,7 @@
 ---
 name: i-have-adhd
-description: 'Shape replies for a reader with ADHD. Load only when the user invokes it (/au-i-have-adhd:i-have-adhd in Claude Code, $au-i-have-adhd:i-have-adhd in Codex) or another skill, such as adhd-unslop, tells you to.'
+description: 'Shape output for a reader with ADHD: lead with the next action, number multi-step work, restate state across turns, suppress tangents, give specific time estimates, make wins visible. Invoke with /i-have-adhd; stays on until "stop adhd mode".'
+disable-model-invocation: true
 license: MIT
 metadata:
   tags: "ADHD, Output Style, Productivity, Formatting"

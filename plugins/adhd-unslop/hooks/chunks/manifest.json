@@ -1,27 +1,27 @@
 {
   "generatedBy": "tools/build.mjs",
-  "compositeSha256": "53497c665897f861e152eef633e85b189c89cda1f4f4bcbe6be8bc65501f0621",
+  "compositeSha256": "0df6923bbf5cf9edff347cf7ff54b63356d53dd4ce55ff755a1a19973f4e6fb1",
   "chunks": [
     {
       "index": 1,
       "file": "1.md",
-      "sha256": "21babf3a4e9bc6f272a7a2f1438e5875001f817976c7702662b6a4f0dcd3ee27",
-      "bytes": 7630,
-      "utf16Units": 7630
+      "sha256": "d825ca854bca5852d4d7d0df08dfab09bafaac7a8110977018f66088a0817669",
+      "bytes": 7462,
+      "utf16Units": 7462
     },
     {
       "index": 2,
       "file": "2.md",
-      "sha256": "2b1824a9c594487b8f63511e1f1327e48e6a6f3ae67e76e6acb1fb91f651b22b",
-      "bytes": 6947,
-      "utf16Units": 6947
+      "sha256": "39d09327923e3b03837ec8bdde1eff5ad3c31a5d36e79956acc88b8845b47d78",
+      "bytes": 6946,
+      "utf16Units": 6946
     },
     {
       "index": 3,
       "file": "3.md",
-      "sha256": "8ac69532836701d8fccaa3980611ad9c02fb6aee94f54bf210cb7edfa42cb42c",
-      "bytes": 6922,
-      "utf16Units": 6920
+      "sha256": "e12567c791fbfd1d36590272d5d67dca5b21d32eb8a2ccacb8485f361e7a1e5e",
+      "bytes": 6871,
+      "utf16Units": 6869
     }
   ]
 }
