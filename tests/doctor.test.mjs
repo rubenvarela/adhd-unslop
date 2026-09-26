@@ -258,7 +258,14 @@ describe("doctor optional mirrors", () => {
     });
   }
 
-  for (const [label, entry] of [["an object", {}], ["a list without versions", [{ scope: "user" }]], ["null", null]]) {
+  for (const [label, entry] of [
+    ["an object", {}],
+    ["a list without versions", [{ scope: "user" }]],
+    ["null", null],
+    ["a list with an empty version", [{ scope: "user", version: "" }]],
+    ["a list with a blank version", [{ scope: "user", version: "  " }]],
+    ["an empty list", []],
+  ]) {
     test(`Claude Code: a mirror entry that is ${label} makes that mirror unknown`, () => {
       const dirs = tempDirs();
       const root = claudeCache(dirs);
