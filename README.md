@@ -242,7 +242,7 @@ tools/                              build.mjs, sync.mjs, plugins.json, upstream.
 tests/                              node:test suite and tests/e2e/
 design/DECISIONS.md                 decisions, reasons, and verified platform facts
 design/                             earlier plans, review rounds, and test runs
-AGENTS.md, CLAUDE.md                rules for agents working in this repo
+AGENTS.md                           rules for agents; Claude Code and Codex both read it
 ```
 
 ## License

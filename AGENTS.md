@@ -6,6 +6,10 @@ tie-breaker. Read `design/DECISIONS.md` before changing structure. It
 records why each part is the way it is and the platform behavior already
 verified, so nothing needs researching again.
 
+There is no `CLAUDE.md`. Claude Code reads `AGENTS.md` when no `CLAUDE.md`
+exists, so this one file serves both CLIs. Adding a `CLAUDE.md` would hide
+this file from Claude Code.
+
 ## Edit sources, never generated files
 
 - Edit `src/adhd-unslop/overlay/*.md`, `tools/plugins.json`,
