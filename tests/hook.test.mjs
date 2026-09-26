@@ -200,7 +200,10 @@ describe("dependency check", () => {
       fs.rmSync(path.join(full, "..", "..", deps[0]), { recursive: true });
       r = runDepCheck(full, env);
       assert.equal(r.status, 0);
-      const msg = JSON.parse(r.stdout).systemMessage;
+      const out = JSON.parse(r.stdout);
+      const msg = out.systemMessage;
+      assert.equal(out.hookSpecificOutput.hookEventName, "SessionStart");
+      assert.ok(out.hookSpecificOutput.additionalContext.endsWith(msg));
       assert.ok(msg.includes(deps[0]) && !msg.includes(deps[1]), msg);
       const cmd = runtime === "codex" ? `codex plugin add ${deps[0]}@adhd-unslop` : `claude plugin install ${deps[0]}@adhd-unslop`;
       assert.ok(msg.includes(cmd), msg);

@@ -5,7 +5,7 @@ This skill uses two skills from the adhd-unslop marketplace:
 - `au-i-have-adhd:i-have-adhd` holds the i-have-adhd rules
 - `au-unslop:unslop` holds the unslop rules
 
-Load both before you apply anything in this file. In Claude Code, call the Skill tool once for each name. In Codex, read the `SKILL.md` file that your skills list gives for each name. Skip a skill whose full text this conversation already contains, such as from the always-on hook, which marks each text with a `BEGIN upstream` comment.
+Load both before you apply anything in this file. In Claude Code, call the Skill tool once for each name. In Codex, read the `SKILL.md` file that your skills list gives for each name. Read only that path. If your skills list has no entry for a name, the skill is missing. Do not search the disk for another copy. Skip a skill whose full text this conversation already contains, such as from the always-on hook, which marks each text with a `BEGIN upstream` comment.
 
 If a skill is missing, tell the user once which one is missing and give the install command, then apply the rules you did load:
 

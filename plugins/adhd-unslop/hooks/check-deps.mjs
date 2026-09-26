@@ -13,7 +13,13 @@ try {
   const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
   const missing = missingDependencies(root);
   if (missing.plugins.length) {
-    process.stdout.write(JSON.stringify({ systemMessage: dependencyWarning(root, missing) }) + "\n");
+    // systemMessage reaches the user in the Claude Code and Codex TUIs. The
+    // context line lets the model pass it on where no TUI shows it, as in codex exec.
+    const warning = dependencyWarning(root, missing);
+    process.stdout.write(JSON.stringify({
+      systemMessage: warning,
+      hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: `Tell the user once, before anything else: ${warning}` },
+    }) + "\n");
   }
 } catch {
   // Never block session start.

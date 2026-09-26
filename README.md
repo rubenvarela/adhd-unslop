@@ -1,8 +1,21 @@
 # adhd-unslop
 
-This skill combines [i-have-adhd](https://github.com/ayghri/i-have-adhd) and
-pstack's [unslop](https://github.com/michael-denyer/pstack-claude). It works
-as a Claude Code plugin and a Codex plugin.
+This repo is a plugin marketplace for Claude Code and Codex. Its main plugin
+combines [i-have-adhd](https://github.com/ayghri/i-have-adhd) and pstack's
+[unslop](https://github.com/michael-denyer/pstack-claude) with one
+tie-breaker.
+
+| Plugin | Skill | What it is |
+| --- | --- | --- |
+| `adhd-unslop` | `adhd-unslop` | The overlay rules. Loads the two skills below. |
+| `au-i-have-adhd` | `i-have-adhd` | A pinned copy of ayghri/i-have-adhd |
+| `au-unslop` | `unslop` | A pinned copy of the unslop skill from pstack-claude |
+
+The two `au-` plugins ship upstream text unchanged except for the
+frontmatter, at commits pinned in `tools/upstream.json`. The `au-` prefix
+keeps them from clashing with the upstream plugins of the same name. When
+two installed plugins share a name, Claude Code uses whichever was installed
+first.
 
 ## The rule
 
@@ -15,105 +28,120 @@ for the same passage:
 
 Compatible rules apply everywhere. The skill defines both surfaces per
 passage, lists the known interactions in an outcome table, and adds
-independent off switches. Read `skills/adhd-unslop/SKILL.md` for the full
-text.
+independent off switches. The overlay text is in `src/adhd-unslop/overlay/`.
 
 ## Install
 
 ### Claude Code
 
 ```bash
-claude plugin marketplace add <owner>/adhd-unslop     # or a local path to this repo
+claude plugin marketplace add rubenvarela/adhd-unslop     # or a local path to this repo
 claude plugin install adhd-unslop@adhd-unslop
 ```
 
-Type `/adhd-unslop` in a session. If another command occupies that name, use
-`/adhd-unslop:adhd-unslop`. The skill has `disable-model-invocation: true`,
-so nothing applies until you invoke it or enable always-on.
+The install brings `au-i-have-adhd` and `au-unslop` with it, because
+`adhd-unslop` declares them as dependencies.
 
-Optional always-on mode:
+Type `/adhd-unslop` in a session. If another command uses that name, type
+`/adhd-unslop:adhd-unslop`. The skill then loads the two others through the
+Skill tool. It has `disable-model-invocation: true`, so nothing applies until
+you invoke it or turn on always-on mode.
+
+Updates do not follow dependencies. Update each plugin:
 
 ```bash
-touch ~/.claude/.adhd-unslop-always      # or "$CLAUDE_CONFIG_DIR/.adhd-unslop-always"
+claude plugin marketplace update adhd-unslop
+claude plugin update adhd-unslop@adhd-unslop
+claude plugin update au-i-have-adhd@adhd-unslop
+claude plugin update au-unslop@adhd-unslop
 ```
-
-A `SessionStart` hook then delivers the skill at `startup`, `resume`,
-`clear`, and `compact`. Remove the flag to stop.
 
 ### Codex
 
-The verified path is the shared Agent Skills directory, the same route
-pstack documents. Clone this repo and link the skill:
+Codex has no plugin dependencies, so install all three:
 
 ```bash
-git clone <this repo> ~/.config/adhd-unslop
-mkdir -p ~/.agents/skills
-ln -s ~/.config/adhd-unslop/skills/adhd-unslop ~/.agents/skills/adhd-unslop
-```
-
-Then type `$adhd-unslop` in a Codex session. In `codex exec`, the mention is
-plain text; the model searches for the skill, reads the linked `SKILL.md`,
-and applies it (verified on Codex 0.154.0). The skill sets
-`allow_implicit_invocation: false`, so Codex will not pick it on its own.
-
-The plugin marketplace route also installs:
-
-```bash
-codex plugin marketplace add <owner>/adhd-unslop --ref main
+codex plugin marketplace add rubenvarela/adhd-unslop --ref main
 codex plugin add adhd-unslop@adhd-unslop
+codex plugin add au-i-have-adhd@adhd-unslop
+codex plugin add au-unslop@adhd-unslop
 ```
 
-On Codex 0.154.0 the plugin's skill did not appear in the exec-mode skill
-catalog, so `$adhd-unslop` found nothing until the symlink above existed.
-Use the marketplace route for the always-on hook, the symlink route for the
-skill, or both.
+Type `$adhd-unslop:adhd-unslop` in a session. Codex matches plugin skills by
+their full name, so a bare `$adhd-unslop` finds nothing. The model then reads
+the `SKILL.md` of each `au-` plugin. If one is missing, the skill names it and
+gives the install command.
 
-Optional always-on mode for the marketplace install:
+Do not symlink the skill into `~/.agents/skills`. Codex names a linked skill
+after the plugin that contains it, so the link becomes a second
+`adhd-unslop:adhd-unslop`. With two skills of one name, Codex loads neither.
+Remove any such link from an earlier install.
+
+To update, run `codex plugin marketplace upgrade adhd-unslop`, then run
+`codex plugin add` again for each plugin.
+
+### Missing plugin warning
+
+At session start, a hook checks that both `au-` plugins are installed. For
+each missing one it prints the install command for the current runtime. It
+never installs anything. Codex runs plugin hooks only after you trust them in
+`/hooks`.
+
+## Always-on mode
+
+Create a flag file to deliver the rules at every session start without
+invoking the skill:
 
 ```bash
+touch ~/.claude/.adhd-unslop-always      # or "$CLAUDE_CONFIG_DIR/.adhd-unslop-always"
 touch ~/.codex/.adhd-unslop-always       # or "$CODEX_HOME/.adhd-unslop-always"
 ```
+
+Either flag enables always-on in both runtimes. A `SessionStart` hook then
+delivers the rules at `startup`, `resume`, `clear`, and `compact`. Remove the
+flag to stop.
 
 Codex runs plugin hooks only after you review and trust them:
 
 1. Open `/hooks` in an interactive Codex session.
-2. Trust all three `adhd-unslop` handlers.
+2. Trust the `adhd-unslop` handlers.
 3. Restart.
 
-Trust a changed hook definition again after an upgrade. Either flag
-file enables always-on in both runtimes. The Codex hook path is not yet
-verified end to end because trusting hooks is interactive. The test suite
-covers the launcher.
-
-Without hooks, add this to `~/.codex/AGENTS.md`.
+Trust a changed hook definition again after an upgrade. Without hooks, add
+this to `~/.codex/AGENTS.md`:
 
 ```markdown
 At the start of every session, read and follow the complete installed
-SKILL.md of the adhd-unslop skill ($adhd-unslop). Do not summarize it.
+SKILL.md of the adhd-unslop skill ($adhd-unslop:adhd-unslop). Do not
+summarize it.
 ```
 
-## How the always-on hook works
+### How the always-on hook works
+
+The hook does not load the `au-` plugins. It carries its own copy of both
+upstream texts, because a hook cannot count on another plugin being
+installed.
 
 Claude Code caps each hook's output at 10,000 characters and Codex at about
-2,500 tokens per handler. The skill is about 22,000 characters, so the hook
-delivers it as three chunks from three handlers under one matcher:
+2,500 tokens per handler. The rules are about 21,500 characters, so the hook
+delivers them as three chunks from three handlers under one matcher:
 
 1. Scope, surfaces, precedence, and lifecycle.
 2. The i-have-adhd body, verbatim.
 3. The unslop body, verbatim, plus the final check.
 
 Every chunk has the same header, with its index and the first 12
-hexadecimal characters of the composite's SHA-256 bundle ID. The header also:
+hexadecimal characters of the bundle's SHA-256. The header also:
 
 - Says to apply the bundle only after all three chunks arrive
 - Preserves mode state when instructions arrive
 - States the precedence rule
 
-Each handler sets
-`additionalContextLimit: 5000` for Codex. The launcher checks each chunk hash
-against `hooks/chunks/manifest.json`. It checks the assembled size against
-both caps before printing. With the flag set and a broken install, it prints
-one JSON `systemMessage` with no context. Without the flag, it prints nothing.
+Each handler sets `additionalContextLimit: 5000` for Codex. The launcher
+checks each chunk hash against `hooks/chunks/manifest.json` and checks the
+assembled size against both caps before printing. With the flag set and a
+broken install, it prints one JSON `systemMessage` with no context. Without
+the flag, it prints nothing.
 
 ## Switches
 
@@ -126,54 +154,84 @@ Known limitation: mode state lives in the conversation. Compaction or resume
 can lose it, and the re-injected instructions then restore the active
 defaults. Repeat the stop command if that happens.
 
-## Upgrading an upstream
+## Upstream updates
+
+The `Bump upstream skills` workflow runs daily. It runs
+`node tools/sync.mjs --latest`, which:
+
+1. Finds the newest upstream commit that touched a pinned file.
+2. Skips an upstream when that commit changed none of the pinned files.
+3. Fetches the files and refuses a body that references files the plugins
+   do not ship, such as `references/`, `scripts/`, or relative links.
+4. Refuses a body that drops a rule, exception, check, or process step the
+   overlay cites.
+5. Swaps the files in, raises the patch version of each plugin that ships
+   the text, rebuilds, and runs the tests. It restores everything if a step
+   fails.
+
+The workflow opens or updates one PR with the results and starts the verify
+workflow on it. When a bump fails, it opens an issue with the reason. The
+usual cause is an upstream change to a rule the overlay cites, which needs an
+overlay edit.
+
+The workflow needs the repository setting "Allow GitHub Actions to create and
+approve pull requests".
+
+To bump by hand:
 
 ```bash
 node tools/sync.mjs --check                        # upstream/ matches the pins
 node tools/sync.mjs --bump i-have-adhd <commit>    # or: --bump unslop <commit>
-git diff upstream/ skills/ hooks/chunks/ tools/upstream.json
+git diff
 ```
 
-`--bump`:
+Review the upstream diff for conflicts with the other skill. Record them in
+the outcome table in `src/adhd-unslop/overlay/10-precedence.md`.
 
-1. Fetches `SKILL.md` and `LICENSE` at the commit into `.sync-staging/`.
-2. Refuses a new body that references files the composite cannot ship:
-   `references/`, `scripts/`, `agents/`, or relative links.
-3. Warns about new rule numbers missing from the overlay.
-4. Fails if the overlay cites a rule that no longer exists.
-5. Swaps in the files, rebuilds, runs the tests, and restores everything if a
-   step fails.
+## Editing
 
-Review the diff for conflicts with the other skill. Record them in the
-outcome table in `overlay/10-precedence.md`.
-
-Edit only `overlay/*.md`, `tools/upstream.json`, and `VERSION`. Then:
+Edit only `src/`, `tools/plugins.json`, `tools/upstream.json`, and the
+hand-written files in `plugins/adhd-unslop/hooks/`. Then:
 
 ```bash
 node tools/build.mjs
 node --test tests/*.test.mjs
 ```
 
-`node tools/build.mjs` generates `skills/adhd-unslop/SKILL.md`,
-`hooks/chunks/`, the license copies, and the version fields in the manifests.
-A test fails if any of them go stale.
+`node tools/build.mjs` generates both marketplace files, every plugin
+manifest, the `au-` plugins, the `adhd-unslop` skill, and the hook chunks. A
+test fails if any of them go stale. `tools/plugins.json` holds each plugin's
+version and dependencies.
+
+To add a plugin that uses i-have-adhd, add it to `tools/plugins.json` with
+`"dependencies": ["au-i-have-adhd"]` and have its skill load
+`au-i-have-adhd:i-have-adhd`, as `src/adhd-unslop/overlay/05-load.md` does.
+Give it no always-on hook of its own, or it will inject the ADHD rules a
+second time.
+
+`tests/e2e/run.sh` installs the marketplace into throwaway Claude Code and
+Codex homes and checks the behavior with the real CLIs. It needs both CLIs
+signed in, so CI does not run it.
 
 ## Layout
 
 ```
-.claude-plugin/          Claude Code manifest and marketplace
-.codex-plugin/           Codex manifest. It declares "skills": "./skills/".
-.agents/plugins/         Codex marketplace
-hooks/hooks.json         SessionStart, three handlers
-hooks/always-on.mjs      launcher
-hooks/lib.mjs            shared helpers (hashing, size limits, header text)
-hooks/chunks/            GENERATED chunk payloads and manifest
-skills/adhd-unslop/      GENERATED SKILL.md, agents/openai.yaml, LICENSES/
-upstream/                pristine upstream files at the pinned commits
-overlay/                 hand-written sections
-tools/                   build.mjs, sync.mjs, upstream.json
-tests/                   node:test suite
-design/                  the plan and the five Codex review rounds
+.claude-plugin/marketplace.json     GENERATED Claude Code marketplace
+.agents/plugins/marketplace.json    GENERATED Codex marketplace
+plugins/adhd-unslop/                the overlay plugin
+  hooks/hooks.json                  SessionStart handlers
+  hooks/always-on.mjs               always-on launcher
+  hooks/check-deps.mjs              missing plugin warning
+  hooks/lib.mjs                     shared helpers
+  hooks/chunks/                     GENERATED chunk payloads and manifest
+  skills/adhd-unslop/               GENERATED SKILL.md, agents/openai.yaml, LICENSES/
+plugins/au-i-have-adhd/             GENERATED pinned copy of i-have-adhd
+plugins/au-unslop/                  GENERATED pinned copy of unslop
+src/adhd-unslop/overlay/            hand-written overlay sections
+upstream/                           upstream files at the pinned commits
+tools/                              build.mjs, sync.mjs, plugins.json, upstream.json
+tests/                              node:test suite and tests/e2e/
+design/                             plans and review rounds
 ```
 
 ## License
