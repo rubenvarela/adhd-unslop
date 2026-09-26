@@ -30,11 +30,23 @@
 # CLAUDE_BIN and CODEX_BIN pick other CLI binaries, for example a newer Codex:
 #
 #   CODEX_BIN=/path/to/node_modules/.bin/codex tests/e2e/run.sh codex
+#
+# Every Codex model turn uses CODEX_MODEL (default gpt-5.6-luna) at
+# CODEX_EFFORT (default low), to save usage. The checks read what arrived in
+# context from the rollouts, so the model barely matters.
+#
+# Before each Codex model run after the first, tools/codex-usage.mjs reads
+# the plan usage that the last run recorded. At CODEX_USAGE_MAX percent
+# (default 80) of the 5-hour or weekly window, the script prints a SKIP line
+# with the reset time and stops the Codex steps of that mode. It then exits
+# 3 unless a check failed, which exits 1.
 
 # Codex skill names such as $adhd-unslop:adhd-unslop are literal prompt text.
 # shellcheck disable=SC2016
 set -u
-repo=$(cd "$(dirname "$0")/../.." && pwd)
+# The physical path: tools/codex-usage.mjs runs nothing when started
+# through a symlinked path.
+repo=$(cd "$(dirname "$0")/../.." && pwd -P)
 here=$repo/tests/e2e
 only=${1:-all}
 case $only in
@@ -44,6 +56,10 @@ esac
 
 claude_bin=${CLAUDE_BIN:-claude}
 codex_bin=${CODEX_BIN:-codex}
+codex_model=${CODEX_MODEL:-gpt-5.6-luna}
+codex_effort=${CODEX_EFFORT:-low}
+usage_tool=$repo/tools/codex-usage.mjs
+usage_max=${CODEX_USAGE_MAX:-80}
 real_home=$HOME
 # The commit that shipped adhd-unslop 0.2.2, the version migrate upgrades from.
 migrate_from=fc308bd
@@ -185,12 +201,36 @@ cxc() { cx_env "$codex_bin" "$@" </dev/null; }
 cxe() {
   local log=$1
   shift
-  (cd "$cwd" && cx_env "$codex_bin" exec --skip-git-repo-check -s read-only "$@" </dev/null >"$log" 2>&1)
+  (cd "$cwd" && cx_env "$codex_bin" exec --skip-git-repo-check -s read-only \
+    -m "$codex_model" -c "model_reasoning_effort=\"$codex_effort\"" "$@" </dev/null >"$log" 2>&1)
 }
 codex_session() { sed -n 's/^session id: //p' "$1" | head -n 1; }
 codex_rollout() { find "$codex_home/.codex/sessions" -name "rollout-*-$1.jsonl" 2>/dev/null | head -n 1; }
 codex_plugins() { cxc plugin list --json >"$1.json" 2>"$1.err"; inspect plugins codex "$1.json" >"$1"; }
 codex_hooks() { cx_env node "$here/codex-hooks.mjs" "$codex_bin" "$cwd" "$@"; }
+
+# model_step NAME: call before each Codex model run. After the first run it
+# reads the plan usage from the home of the last run, and at the limit it
+# prints one SKIP line and returns 1, so the caller stops its Codex steps.
+usage_home=
+codex_skipped=
+model_step() {
+  local out rc
+  [ -z "$codex_skipped" ] || return 1
+  if [ -n "$usage_home" ] && [ -f "$usage_tool" ]; then
+    out=$(CODEX_HOME=$usage_home node "$usage_tool" --gate --max "$usage_max" 2>&1)
+    rc=$?
+    if [ "$rc" -eq 3 ]; then
+      codex_skipped=1
+      echo "SKIP  $1 and the Codex steps after it: $(printf '%s\n' "$out" | tail -n 1)"
+      return 1
+    fi
+  fi
+  usage_home=$codex_home/.codex
+}
+codex_usage() {
+  if [ -n "$usage_home" ] && [ -f "$usage_tool" ]; then CODEX_HOME=$usage_home node "$usage_tool" 2>&1 | tail -n 1; fi
+}
 
 same_claude_session() {
   local log=$1 sid=$2 transcript=$3 prompt=$4 got
@@ -207,7 +247,7 @@ same_codex_session() {
 
 echo "logs: $work"
 echo "claude: $("$claude_bin" --version 2>&1 | head -n 1)"
-echo "codex: $("$codex_bin" --version 2>&1 </dev/null | head -n 1)"
+echo "codex: $("$codex_bin" --version 2>&1 </dev/null | head -n 1), model $codex_model at $codex_effort effort"
 
 # Marketplace for the fresh-install runs. In local mode the expected versions
 # and bundle id come from the copy; in GitHub mode from the installed copy.
@@ -352,6 +392,7 @@ run_codex() {
 
   # Always-on is off: no flag file, and the hooks are not trusted yet.
   log=$work/codex-invoke.log
+  model_step 'codex: $adhd-unslop:adhd-unslop' || return
   cxe "$log" -o "$work/codex-invoke.txt" '$adhd-unslop:adhd-unslop Reply with the single word READY.'
   sid=$(codex_session "$log")
   rollout=$(codex_rollout "$sid")
@@ -365,6 +406,7 @@ run_codex() {
 
   # The clean case: only adhd-unslop is installed.
   log=$work/codex-unprompted.log
+  model_step 'codex: unprompted question' || return
   cxe "$log" -o "$work/codex-unprompted.txt" 'What is 17 times 3? Digits only.'
   rollout=$(codex_rollout "$(codex_session "$log")")
   expect "codex: unprompted question answers" '^51' "$work/codex-unprompted.txt"
@@ -379,16 +421,19 @@ run_codex() {
   check "codex: au-unslop installs by name" has_plugin "$work/codex-plugins-2.txt" au-unslop@adhd-unslop "$(want_version au-unslop)"
 
   log=$work/codex-typed-adhd.log
+  model_step 'codex: typed $au-i-have-adhd:i-have-adhd' || return
   cxe "$log" -o "$work/codex-typed-adhd.txt" '$au-i-have-adhd:i-have-adhd Reply with the number of the rule that caps list length, digits only.'
   expect "codex: typed \$au-i-have-adhd:i-have-adhd works" '^9([^0-9]|$)' "$work/codex-typed-adhd.txt"
 
   log=$work/codex-typed-unslop.log
+  model_step 'codex: typed $au-unslop:unslop' || return
   cxe "$log" -o "$work/codex-typed-unslop.txt" '$au-unslop:unslop Reply with the number of the rule about em dashes, digits only.'
   expect "codex: typed \$au-unslop:unslop works" '^13([^0-9]|$)' "$work/codex-typed-unslop.txt"
 
   # With the mirrors installed. au-unslop keeps upstream's model-invocable
   # "Must always apply" skill on purpose, so its auto-load is INFO.
   log=$work/codex-unprompted-mirrors.log
+  model_step 'codex: unprompted question with the mirrors' || return
   cxe "$log" -o "$work/codex-unprompted-mirrors.txt" 'What is 17 times 3? Digits only.'
   expect "codex: unprompted question with the mirrors answers" '^51' "$work/codex-unprompted-mirrors.txt"
   refuse "codex: with the mirrors, the unprompted question loads no adhd-unslop or au-i-have-adhd skill" \
@@ -398,6 +443,7 @@ run_codex() {
 
   touch "$codex_home/.codex/.adhd-unslop-always"
   log=$work/codex-always-on.log
+  model_step 'codex: always-on startup' || return
   cxe "$log" --dangerously-bypass-hook-trust -o "$work/codex-always-on.txt" 'Reply with the single word OK.'
   sid=$(codex_session "$log")
   rollout=$(codex_rollout "$sid")
@@ -405,6 +451,7 @@ run_codex() {
   check "codex: always-on delivers one complete bundle at startup" inspect bundle codex "$rollout" "$bundle" exact
 
   log=$work/codex-resume.log
+  model_step 'codex: exec resume' || return
   cxe "$log" --dangerously-bypass-hook-trust resume --last 'Reply with the single word AGAIN.'
   check "codex: exec resume --last continues the same session" same_codex_session "$log" "$sid" "$rollout" 'Reply with the single word AGAIN.'
   [ -n "$rollout" ] && cp "$rollout" "$work/codex-resume.rollout.jsonl"
@@ -417,7 +464,8 @@ run_codex() {
   local rc out
   codex_hooks trust adhd-unslop@adhd-unslop >>"$work/codex-install.log" 2>&1
   log=$work/codex-compact.log
-  out=$(cx_env node "$here/codex-thread.mjs" "$codex_bin" "$cwd" "$log" \
+  model_step 'codex: app-server compaction' || return
+  out=$(cx_env env CODEX_MODEL="$codex_model" CODEX_EFFORT="$codex_effort" node "$here/codex-thread.mjs" "$codex_bin" "$cwd" "$log" \
     'turn:Reply with the single word OK.' compact 'turn:Reply with the single word AGAIN.' 2>&1)
   rc=$?
   printf '%s\n' "$out" >"$work/codex-compact.out"
@@ -543,6 +591,7 @@ migrate_codex() {
 
   # No --dangerously-bypass-hook-trust: only the recorded trust lets the hooks run.
   log=$work/migrate-codex-session.log
+  model_step 'migrate codex: new session' || return
   cxe "$log" -o "$work/migrate-codex-session.txt" 'Reply with the single word OK.'
   sid=$(codex_session "$log")
   rollout=$(codex_rollout "$sid")
@@ -562,11 +611,12 @@ run_migrate() {
 }
 
 case $only in
-  all) run_claude; run_codex; run_migrate ;;
+  all) run_claude; run_codex; codex_usage; run_migrate; codex_usage ;;
   claude) run_claude ;;
-  codex) run_codex ;;
-  migrate) run_migrate ;;
+  codex) run_codex; codex_usage ;;
+  migrate) run_migrate; codex_usage ;;
 esac
 
-echo "$pass passed, $fail failed"
-[ "$fail" -eq 0 ]
+echo "$pass passed, $fail failed${codex_skipped:+, Codex steps skipped at the usage limit}"
+[ "$fail" -eq 0 ] || exit 1
+[ -z "$codex_skipped" ] || exit 3

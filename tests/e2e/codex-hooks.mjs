@@ -11,11 +11,12 @@
 //     does: appends [hooks.state."<key>"] trusted_hash = "<hash>" to
 //     $CODEX_HOME/config.toml. Prints the number of entries written.
 //
-// Exits 1 when app-server fails or answers with an error.
+// Exits 1 when app-server fails, exits, answers with an error, or does not
+// answer a request within 30 seconds.
 
-import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { startAppServer } from "./app-server.mjs";
 
 const [codex, cwd, mode, pluginId] = process.argv.slice(2);
 if (!codex || !cwd || !["list", "trust"].includes(mode) || (mode === "trust" && !pluginId)) {
@@ -28,65 +29,15 @@ if (!codexHome) {
   process.exit(2);
 }
 
-const env = { ...process.env, CODEX_APP_SERVER_DISABLE_MANAGED_CONFIG: "1", RUST_LOG: "warn" };
-delete env.OPENAI_API_KEY;
-delete env.CODEX_API_KEY;
-delete env.ANTHROPIC_API_KEY;
-
-const server = spawn(codex, ["app-server", "--listen", "stdio://"], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
-let stderr = "";
-server.stderr.on("data", (d) => {
-  stderr += d;
-});
-
-const waiting = new Map();
-let buffer = "";
-server.stdout.setEncoding("utf8");
-server.stdout.on("data", (chunk) => {
-  buffer += chunk;
-  let nl;
-  while ((nl = buffer.indexOf("\n")) >= 0) {
-    const line = buffer.slice(0, nl).trim();
-    buffer = buffer.slice(nl + 1);
-    if (!line.startsWith("{")) continue;
-    let msg;
-    try {
-      msg = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (msg.id !== undefined && waiting.has(msg.id)) {
-      waiting.get(msg.id)(msg);
-      waiting.delete(msg.id);
-    }
-  }
-});
-
-let nextId = 0;
-function request(method, params, timeoutMs = 60000) {
-  const id = ++nextId;
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${method} timed out`)), timeoutMs);
-    waiting.set(id, (msg) => {
-      clearTimeout(timer);
-      if (msg.error) reject(new Error(`${method}: ${JSON.stringify(msg.error)}`));
-      else resolve(msg.result);
-    });
-    server.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
-  });
-}
-
-function notify(method) {
-  server.stdin.write(JSON.stringify({ jsonrpc: "2.0", method }) + "\n");
-}
+const server = startAppServer(codex, cwd);
 
 async function listHooks() {
-  await request("initialize", {
+  await server.request("initialize", {
     clientInfo: { name: "adhd-unslop-e2e", title: "adhd-unslop e2e", version: "0" },
     capabilities: { experimentalApi: true, requestAttestation: false, optOutNotificationMethods: [] },
   });
-  notify("initialized");
-  const result = await request("hooks/list", { cwds: [cwd] });
+  server.notify("initialized");
+  const result = await server.request("hooks/list", { cwds: [cwd] });
   const hooks = [];
   for (const entry of result?.data ?? []) {
     for (const e of entry.errors ?? []) console.error(`hooks/list error: ${JSON.stringify(e)}`);
@@ -119,14 +70,9 @@ try {
   }
 } catch (err) {
   console.error(`codex-hooks.mjs: ${err.message}`);
+  const stderr = server.stderr();
   if (stderr) console.error(stderr.slice(-2000));
   code = 1;
-} finally {
-  server.stdin.end();
-  server.kill("SIGTERM");
-  const killer = setTimeout(() => server.kill("SIGKILL"), 3000);
-  server.on("exit", () => {
-    clearTimeout(killer);
-    process.exit(code);
-  });
 }
+await server.close();
+process.exit(code);

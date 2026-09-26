@@ -194,27 +194,79 @@ chunks. These checks use the real plugin.
 
 ### Results
 
-Claude Code: the check passed. The whole transcript holds two copies, one
-from `startup` and one from `compact`. After the boundary it holds exactly
-one of each chunk. The compaction went from 24,980 to 7,930 tokens.
+Every run used bundle `0df6923bbf5c`, the final build of this branch.
 
-Codex: not measured yet. The ChatGPT workspace behind the copied
-`auth.json` ran out of credits during this work, so every model turn failed
-with "Your workspace is out of credits" (`usageLimitExceeded`). The Codex
-check stays a required PASS or FAIL line and is ready to run.
+| Runtime | Result | Tokens |
+| --- | --- | --- |
+| Claude Code 2.1.283 | PASS: one copy of each chunk after the boundary | Compaction from 24,995 to 7,994 |
+| Codex 0.154.0 | PASS: one copy of each chunk after the `compacted` record | Input 18,372 before, 18,689 on the turn after |
+| Codex 0.157.1 | PASS: one copy of each chunk after the `compacted` record | Input 18,452 before, 18,734 on the turn after |
 
-- Before the credits ran out, one 0.157.1 run reached the compaction
-  through app-server. The rollout got a `compacted` record whose
-  `replacement_history` held the user message and one compaction item. The
-  driver then stopped early, the bug described above, so the bundle count
-  after the compaction was not taken. The same step on 0.154.0 failed
-  inside the remote compact task with the credits error.
-- With no credits, both the compaction step and the count after it fail on
-  0.154.0 and 0.157.1.
-- Checks that read only the rollout still pass without a model answer,
-  because Codex records the injected skill and the hook output before it
-  samples: skill arrival, the startup bundle, the resume bundle, and the
-  migrate bundle without the bypass flag. The "answers" checks and the
-  typed mirror checks fail. The "reads no skill" checks pass but prove
-  nothing without an answer, which the failing "answers" check beside each
-  one shows.
+- In each runtime the whole log holds two copies: the `startup` copy before
+  the compaction and the `compact` copy after it. The count after the
+  compaction ignores the first, as the model does.
+- In Codex, `replacement_history` held only the user message and one
+  compaction item, so the old hook text was dropped. The new copy arrived as
+  three developer messages at the start of the next turn. A second copy
+  would have added about 5,400 input tokens. The input on the turn after
+  the compaction stayed within 500 tokens of the first turn. The Codex rows
+  come from the final runs on `gpt-5.6-luna` at low effort. Earlier runs on
+  each version's default model gave the same result, with inputs of 20,768
+  to 21,247 on 0.154.0 and 20,397 to 20,790 on 0.157.1.
+- The app-server method needed no model-dependent step. It worked on the
+  first try on both Codex versions once the driver matched
+  `turn/completed` to its own turn id, so the Codex check stays a required
+  PASS or FAIL line.
+- One earlier attempt failed while the ChatGPT workspace behind the copied
+  `auth.json` was out of credits. The error was "Your workspace is out of
+  credits" (`usageLimitExceeded`). With no credits, every Codex check that
+  needs a model answer fails. The checks that read only the rollout still
+  pass, because Codex records the injected skill and the hook output before
+  it samples.
+- Review round 14 found that the app-server helpers could wait forever on a
+  server that exited without replying, and that `codex-thread.mjs` did not
+  set `CODEX_APP_SERVER_DISABLE_MANAGED_CONFIG=1`. Both helpers now share
+  `tests/e2e/app-server.mjs`, which sets it, gives every request a timeout
+  (30 seconds, 180 for turns and compaction), and rejects every pending
+  request and wait when the server fails to start or exits. Tried against a
+  missing binary, one that exits at once, one that exits after 2 seconds,
+  and one that never answers: each helper exited 1 with a clear message,
+  the last after the 30-second timeout, and left no child process.
+
+## Final results
+
+Date: 2026-09-26, on the final plugin content of this branch, bundle
+`0df6923bbf5c`. Each mode ran once per CLI version in throwaway homes. The
+`codex` rows are the final runs, on `gpt-5.6-luna` at low effort, after the
+helper fixes from review round 14. The `migrate` rows ran on each version's
+default model before that switch.
+After the runs a `find` showed no `auth.json`, `shell_snapshots`, or
+`logs_*.sqlite` files and no key strings in the scratch folders.
+
+| Mode | CLI | Checks | INFO lines |
+| --- | --- | --- | --- |
+| `claude` | Claude Code 2.1.283 | 19 of 19 | Skill after `/compact`: cut at 20,000 characters, final check missing. After `--resume` and `/compact`: not re-attached |
+| `codex` | Codex 0.154.0 | 21 of 21 | au-unslop loaded unprompted with the mirrors: no |
+| `codex` | Codex 0.157.1 | 21 of 21 | au-unslop loaded unprompted with the mirrors: no |
+| `migrate` | Claude Code 2.1.283 and Codex 0.154.0 | 16 of 16 | none |
+| `migrate` | Claude Code 2.1.283 and Codex 0.157.1 | 16 of 16 | none |
+
+Notes on the final Codex runs:
+
+- `gpt-5.6-luna` at low effort passed every answer check on both versions.
+  In one run of 0.154.0 it expanded the au-unslop skill path wrongly,
+  dropping the plugin folder. It then ran `rg --files` over the whole
+  session folder, which held the marketplace copy and other scratch
+  copies, and read `mkt/plugins/au-unslop/skills/unslop/SKILL.md`. That
+  run's au-unslop INFO line said yes for that reason. This is the stray
+  copy risk that `AGENTS.md` describes. In the clean-case run the "reads no
+  skill file" check would catch it and fail.
+- `run.sh` now calls `tools/codex-usage.mjs --gate` before each Codex model
+  run after the first and stops the Codex steps with a SKIP line at the
+  limit, then exits 3. A run with `CODEX_USAGE_MAX=0` stopped at the second
+  model step with the reset time, as intended.
+- `tools/codex-usage.mjs` does nothing and exits 0 when started through a
+  symlinked path, because its main-module check compares `argv[1]` with the
+  resolved module URL. This checkout is reached through the symlink
+  `~/Development`, so the gate never tripped until `run.sh` switched to the
+  physical path (`pwd -P`).

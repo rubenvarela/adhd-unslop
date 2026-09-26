@@ -385,7 +385,17 @@ export function prune(expected = expectedFiles(), root = repo) {
   return strays;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// True when this file is the script node was asked to run. Compares real paths,
+// so a run through a symlinked checkout still counts.
+function isMain() {
+  try {
+    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) {
   try {
     const expected = expectedFiles();
     if (process.argv.includes("--check")) {

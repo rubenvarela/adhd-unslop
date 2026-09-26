@@ -13,6 +13,7 @@
 // Exits 1 when a plugin fails, and 2 on a usage or git error.
 
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -108,7 +109,17 @@ export function gate({ base, cwd }) {
   return { results: evaluate({ head, base: atBase, changed }), changed, baseHasConfig: atBase !== null };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// True when this file is the script node was asked to run. Compares real paths,
+// so a run through a symlinked checkout still counts.
+function isMain() {
+  try {
+    return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) {
   const args = process.argv.slice(2);
   const i = args.indexOf("--base");
   const base = i >= 0 ? args[i + 1] : undefined;
