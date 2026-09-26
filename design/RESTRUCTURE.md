@@ -1,6 +1,20 @@
 # Restructure plan: one marketplace, several plugins
 
-Status: draft, 2026-09-26. Supersedes the single-plugin layout in `PLAN.md`.
+Status: steps 1 to 6 implemented on branch `restructure-marketplace`,
+2026-09-26. Step 7 waits for approval. Supersedes the single-plugin layout
+in `PLAN.md`.
+
+## Where the implementation differs
+
+- All upstream bumps share one PR on branch `upstream-bump`, instead of one
+  branch per upstream.
+- The citation gate checks ADHD exceptions, ADHD checks, and unslop process
+  steps as well as rules. On its first real run it refused an upstream
+  unslop change that removes process step 3, which the final check cites.
+- The dependency hook sends its warning both as `systemMessage` and as model
+  context, because `codex exec` does not print hook system messages.
+- The load step tells Codex to read only the path in its skills list. In one
+  test the model searched the disk and read a stale copy.
 
 ## Goal
 
@@ -296,7 +310,7 @@ manual dispatch.
 1. Check out, set up Node 22.
 2. Run `node tools/sync.mjs --latest`. It exits 0 with no change, 0 after a
    successful bump, and 1 when a bump fails its checks.
-3. On a successful bump, open or update a PR on branch `upstream/<name>`
+3. On a successful bump, open or update a PR on branch `upstream-bump`
    with `peter-evans/create-pull-request`. The PR body lists old and new
    commits, the citation warnings, and a link to the upstream diff.
 4. On a failed bump, open an issue with the failure text. The usual cause
@@ -310,7 +324,7 @@ A PR opened with the default `GITHUB_TOKEN` does not start other workflows.
 The existing verify workflow would not run on it. The bump job already
 builds and tests before it opens the PR. GitHub documents one exception.
 `GITHUB_TOKEN` can start a `workflow_dispatch` run. After opening the PR,
-the bump job runs `gh workflow run daily-build.yml --ref upstream/<name>`,
+the bump job runs `gh workflow run daily-build.yml --ref upstream-bump`,
 which needs `actions: write`. The verify run then reports on the PR's head
 commit. This needs no extra secret. It is documented but not yet tested
 here.
