@@ -100,7 +100,9 @@ weekly limit. Keep to these defaults unless the user says otherwise:
 - Keyless Codex steps, such as `marketplace add`, `plugin add`, and
   `app-server` `plugin/list`, `plugin/read`, and `hooks/list`, cost nothing.
 - Before a model run, check `node tools/codex-usage.mjs --gate`. It reads
-  the newest session log and exits 3 at 80% of either window. At 80% of the
+  the newest session log and exits 3 at 80% of either window.
+  `design/run-codex.sh` and `tests/e2e/run.sh` run this check themselves,
+  and both take `CODEX_USAGE_MAX` to change the 80. At 80% of the
   5-hour window, pause Codex model runs until the reset it prints and keep
   working on everything else. At 80% of the weekly window, stop and ask the
   user.
