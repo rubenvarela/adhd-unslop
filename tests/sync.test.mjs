@@ -29,8 +29,8 @@ describe("version bumps", () => {
 describe("citation gate", () => {
   test("removing a cited unslop process step fails the bump", () => {
     const body = stripFrontmatter(read("upstream", "unslop", "SKILL.md"));
-    const { failures } = citationReport("unslop", body, body.replace(/^3\. Self-audit.*\n/m, ""));
-    assert.deepEqual(failures, ["the overlay cites unslop process 3, which no longer exists upstream"]);
+    const { failures } = citationReport("unslop", body, body.replace(/^2\. Rewrite\..*\n/m, ""));
+    assert.deepEqual(failures, ["the overlay cites unslop process 2, which no longer exists upstream"]);
   });
 
   test("removing a cited ADHD exception fails the bump", () => {
