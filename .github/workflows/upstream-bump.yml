@@ -53,7 +53,8 @@ jobs:
             exit 1
           fi
 
-      # Exits 1 when a bump fails its checks. Successful bumps are kept either way.
+      # Exits 1 when any bump fails its checks. The PR step then does not run, so
+      # a partial or broken bump is never published; the issue step reports it.
       - name: Check upstreams and bump
         id: sync
         if: steps.verify.outcome == 'success'
@@ -64,7 +65,7 @@ jobs:
 
       - name: Open or update the bump PR
         id: pr
-        if: steps.verify.outcome == 'success'
+        if: steps.verify.outcome == 'success' && steps.sync.outcome == 'success'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           branch: upstream-bump

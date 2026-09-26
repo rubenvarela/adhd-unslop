@@ -248,9 +248,13 @@ export async function bump(name, commit, { versions = true, fetched } = {}) {
   return { name, from, to: commit, warnings, versions: raised };
 }
 
+// Bumps every changed upstream. Returns { results, versions }. When the final
+// version raise and build fail, restores everything to its state before the
+// run, so a partial bump is never left in the checkout, and throws.
 export async function latest() {
   const pins = readPins();
   const results = [];
+  const before = snapshot("latest");
   for (const [name, pin] of Object.entries(pins.upstreams)) {
     try {
       const sha = await latestCommit(pin);
@@ -273,11 +277,17 @@ export async function latest() {
   const bumped = results.filter((r) => r.status === "bumped").map((r) => r.name);
   let versions = [];
   if (bumped.length) {
-    const config = readConfig();
-    versions = raiseVersions(config, bumped);
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-    buildAndTest();
+    try {
+      const config = readConfig();
+      versions = raiseVersions(config, bumped);
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+      buildAndTest();
+    } catch (err) {
+      before.restore();
+      throw new Error(`raising versions after ${bumped.join(", ")} failed and every bump was rolled back (${err.message})`);
+    }
   }
+  before.discard();
   return { results, versions };
 }
 
@@ -337,9 +347,18 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       console.log(`promoted ${r.name} to ${r.to}; new versions: ${r.versions.join(", ") || "none"}. Review: git diff`);
     } else if (cmd === "--latest") {
       const i = rest.indexOf("--report");
-      const summary = await latest();
+      const reportFile = i >= 0 ? rest[i + 1] : null;
+      let summary;
+      try {
+        summary = await latest();
+      } catch (err) {
+        // Write a report anyway, so the workflow's issue step has something to post.
+        const md = ["# Upstream bump failed", "", "```", err.message, "```", ""].join("\n");
+        if (reportFile) fs.writeFileSync(reportFile, md);
+        throw err;
+      }
       const md = reportMarkdown(summary);
-      if (i >= 0 && rest[i + 1]) fs.writeFileSync(rest[i + 1], md);
+      if (reportFile) fs.writeFileSync(reportFile, md);
       console.log(md);
       if (summary.results.some((r) => r.status === "failed")) process.exit(1);
     } else {

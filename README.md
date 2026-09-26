@@ -216,8 +216,9 @@ compares its hash. Then `node tools/sync.mjs --latest`:
    the text, rebuilds, and runs the tests. It restores everything if a step
    fails.
 
-The workflow opens or updates one PR with the results and starts the verify
-workflow on it. When a bump fails, it opens an issue with the reason. The
+When every check passes, the workflow opens or updates one PR with the
+results and starts the verify workflow on it. When any bump fails, it opens
+an issue with the reason and no PR. The
 usual cause is an upstream change to a rule the overlay cites, which needs an
 overlay edit. It needs the repository setting "Allow GitHub Actions to create
 and approve pull requests".

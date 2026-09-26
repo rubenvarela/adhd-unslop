@@ -393,10 +393,11 @@ i-have-adhd gets a new version whenever i-have-adhd changes.
 
 `.github/workflows/upstream-bump.yml` runs daily. It checks the pins with
 `sync.mjs --verify-remote`, which refetches each pinned file and compares
-its hash, then runs `sync.mjs --latest`. It opens or updates one PR on
-branch `upstream-bump`, or opens one issue when a pin does not match
-upstream or a bump fails its checks. A person reviews each PR for new
-conflicts before merging.
+its hash, then runs `sync.mjs --latest`. When every check passes, it opens
+or updates one PR on branch `upstream-bump`. When a pin does not match
+upstream or any bump fails its checks, it opens one issue and no PR, so a
+partial or broken bump is never published. A person reviews each PR for
+new conflicts before merging.
 
 - Why a PR: an upstream change can add a conflict the outcome table does
   not cover.
