@@ -36,7 +36,7 @@
     },
     {
       "name": "au-unslop",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "kind": "vendored",
       "upstream": "unslop",
       "skill": "unslop",
@@ -59,7 +59,7 @@
     },
     {
       "name": "adhd-unslop",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "kind": "composed",
       "embeds": [
         "i-have-adhd",
