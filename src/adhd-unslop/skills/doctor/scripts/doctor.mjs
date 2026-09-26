@@ -153,8 +153,21 @@ function mirrorVersion(name) {
   const sibling = path.join(root, "..", name);
   const direct = manifestVersion(sibling);
   if (direct) return direct;
-  // Installed: <cache>/<marketplace>/<name>/<version>/. Claude Code keeps
-  // replaced versions for a while and marks them with .orphaned_at.
+  // Claude Code keeps cache folders for plugins that are not installed, so
+  // its install record decides. installed_plugins.json maps
+  // "<plugin>@<marketplace>" to a list of installs, each with a version.
+  if (runtime === "claude") {
+    const record = readJson(path.join(claudeDir, "plugins", "installed_plugins.json"));
+    if (record && typeof record.plugins === "object") {
+      const installs = record.plugins[`${name}@${MARKETPLACE}`];
+      const versions = (Array.isArray(installs) ? installs : []).map((i) => i?.version).filter((v) => typeof v === "string").sort(compareVersions);
+      return versions.at(-1) ?? null;
+    }
+  }
+  // Codex removes a plugin's cache folder when the plugin is removed, so the
+  // cache decides: <cache>/<marketplace>/<name>/<version>/. Claude Code, when
+  // its install record is missing, falls back to this too, skipping versions
+  // it marked with .orphaned_at.
   const base = path.join(root, "..", "..", name);
   let entries = [];
   try {

@@ -211,6 +211,38 @@ describe("doctor runtime detection and installed layouts", () => {
   });
 });
 
+describe("doctor optional mirrors", () => {
+  // A Claude Code cache: <config>/plugins/cache/adhd-unslop/<plugin>/<version>/.
+  const claudeCache = (dirs) => {
+    const cache = path.join(dirs.claude, "plugins", "cache", "adhd-unslop");
+    for (const n of ["adhd-unslop", ...MIRRORS]) fs.cpSync(path.join(plugins, n), path.join(cache, n, versionOf(path.join(plugins, n))), { recursive: true });
+    return path.join(cache, "adhd-unslop", versionOf(path.join(plugins, "adhd-unslop")));
+  };
+  const record = (dirs, names) => {
+    const entries = Object.fromEntries(names.map((n) => [`${n}@adhd-unslop`, [{ scope: "user", version: versionOf(path.join(plugins, n)) }]]));
+    fs.writeFileSync(path.join(dirs.claude, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: entries }));
+  };
+
+  test("Claude Code: cache folders alone do not count as installed", () => {
+    const dirs = tempDirs();
+    const root = claudeCache(dirs);
+    record(dirs, ["adhd-unslop"]);
+    const r = runDoctor(dirs, { root });
+    assert.ok(r.has(/^OK {3}runtime: Claude Code/), r.stdout);
+    for (const m of MIRRORS) assert.ok(r.lines.includes(`OK   ${m}: not installed (optional)`), r.stdout);
+    assert.deepEqual(r.warns, []);
+  });
+
+  test("Claude Code: the install record lists an installed mirror", () => {
+    const dirs = tempDirs();
+    const root = claudeCache(dirs);
+    record(dirs, ["adhd-unslop", "au-unslop"]);
+    const r = runDoctor(dirs, { root });
+    assert.ok(r.has(new RegExp(`^OK {3}au-unslop: installed \\(${versionOf(path.join(plugins, "au-unslop")).replace(/\./g, "\\.")}\\)$`)), r.stdout);
+    assert.ok(r.lines.includes("OK   au-i-have-adhd: not installed (optional)"), r.stdout);
+  });
+});
+
 describe("doctor Codex features", () => {
   const withConfig = (toml) => {
     const dirs = tempDirs();
