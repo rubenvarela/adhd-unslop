@@ -1,0 +1,71 @@
+name: Bump upstream skills
+
+on:
+  schedule:
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: upstream-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      # Exits 1 when a bump fails its checks. Successful bumps are kept either way.
+      - name: Check upstreams and bump
+        id: sync
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/sync.mjs --latest --report "$RUNNER_TEMP/report.md"
+
+      - name: Open or update the bump PR
+        id: pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: upstream-bump
+          delete-branch: true
+          commit-message: Bump upstream skills
+          title: Bump upstream skills
+          body-path: ${{ runner.temp }}/report.md
+          add-paths: |
+            upstream/**
+            tools/upstream.json
+            tools/plugins.json
+            plugins/**
+            .claude-plugin/**
+            .agents/plugins/**
+
+      # A PR opened with GITHUB_TOKEN does not trigger push or pull_request
+      # workflows, but GITHUB_TOKEN may start a workflow_dispatch run.
+      - name: Verify the PR branch
+        if: steps.pr.outputs.pull-request-operation == 'created' || steps.pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run daily-build.yml --ref upstream-bump
+
+      - name: Open an issue for a failed bump
+        if: steps.sync.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Upstream bump needs attention"
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file "$RUNNER_TEMP/report.md"
+          else
+            gh issue create --title "$title" --body-file "$RUNNER_TEMP/report.md"
+          fi

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, test } from "node:test";
 import { repo, read, proseOnly } from "./helpers.mjs";
-import { ruleNumbers, overlayCitations } from "../tools/sync.mjs";
+import { ruleNumbers, overlayCitations, CITATION_KINDS, citedNumbers } from "../tools/sync.mjs";
 import { stripFrontmatter } from "../plugins/adhd-unslop/hooks/lib.mjs";
 
 const overlayDir = ["src", "adhd-unslop", "overlay"];
@@ -68,6 +68,13 @@ describe("precedence and lifecycle content", () => {
       const body = stripFrontmatter(read("upstream", name, "SKILL.md"));
       const existing = new Set(ruleNumbers(name, body));
       for (const n of overlayCitations(name)) assert.ok(existing.has(n), `${name} rule ${n} cited but missing upstream`);
+    }
+  });
+  test("every exception, check, and process step the overlay cites exists upstream", () => {
+    for (const kind of CITATION_KINDS) {
+      const existing = new Set(kind.numbers(stripFrontmatter(read("upstream", kind.upstream, "SKILL.md"))));
+      assert.ok(existing.size > 0, `${kind.label} list found upstream`);
+      for (const n of citedNumbers(kind.label)) assert.ok(existing.has(n), `${kind.label} ${n} cited but missing upstream`);
     }
   });
   test("load step names both vendored skills and the missing-skill fallback", () => {
