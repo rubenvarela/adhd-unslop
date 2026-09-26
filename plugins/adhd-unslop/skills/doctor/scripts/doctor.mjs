@@ -163,9 +163,12 @@ function mirrorVersion(name) {
     const record = readJson(path.join(claudeDir, "plugins", "installed_plugins.json"));
     const plugins = record && typeof record === "object" ? record.plugins : null;
     if (!plugins || typeof plugins !== "object" || Array.isArray(plugins)) return UNKNOWN;
-    const installs = plugins[`${name}@${MARKETPLACE}`];
+    const key = `${name}@${MARKETPLACE}`;
+    if (!Object.hasOwn(plugins, key)) return null;
+    // A present entry that is not a list of installs with versions is unreadable.
+    const installs = plugins[key];
     const versions = (Array.isArray(installs) ? installs : []).map((i) => i?.version).filter((v) => typeof v === "string").sort(compareVersions);
-    return versions.at(-1) ?? null;
+    return versions.at(-1) ?? UNKNOWN;
   }
   // Codex removes a plugin's cache folder when the plugin is removed, so the
   // cache decides: <cache>/<marketplace>/<name>/<version>/, skipping versions
@@ -186,7 +189,7 @@ function mirrorVersion(name) {
 }
 for (const name of MIRRORS) {
   const v = mirrorVersion(name);
-  if (v === UNKNOWN) ok(`${name}: unknown, because the Claude Code install record ${path.join(claudeDir, "plugins", "installed_plugins.json")} is missing or unreadable (optional)`);
+  if (v === UNKNOWN) ok(`${name}: unknown, because the Claude Code install record ${path.join(claudeDir, "plugins", "installed_plugins.json")} is missing or unreadable, or has no readable entry for it (optional)`);
   else ok(v ? `${name}: installed (${v})` : `${name}: not installed (optional)`);
 }
 

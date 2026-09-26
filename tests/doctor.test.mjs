@@ -244,7 +244,7 @@ describe("doctor optional mirrors", () => {
     ["plugins: null", JSON.stringify({ version: 2, plugins: null })],
     ["plugins as an array", JSON.stringify({ version: 2, plugins: [] })],
   ]) {
-    test(`Claude Code: an ${label} install record makes the mirrors unknown, not installed`, () => {
+    test(`Claude Code: install record ${label}: the mirrors are unknown, not installed`, () => {
       const dirs = tempDirs();
       const root = claudeCache(dirs);
       const file = path.join(dirs.claude, "plugins", "installed_plugins.json");
@@ -252,9 +252,22 @@ describe("doctor optional mirrors", () => {
       const r = runDoctor(dirs, { root });
       assert.equal(r.status, 0, r.stdout + r.stderr);
       assert.equal(r.stderr, "");
-      for (const m of MIRRORS) assert.ok(r.has(new RegExp(`^OK {3}${m}: unknown, because the Claude Code install record .* is missing or unreadable \\(optional\\)$`)), r.stdout);
+      for (const m of MIRRORS) assert.ok(r.has(new RegExp(`^OK {3}${m}: unknown, because the Claude Code install record .* is missing or unreadable, or has no readable entry for it \\(optional\\)$`)), r.stdout);
       assert.deepEqual(r.warns, []);
       assert.deepEqual(r.fails, []);
+    });
+  }
+
+  for (const [label, entry] of [["an object", {}], ["a list without versions", [{ scope: "user" }]], ["null", null]]) {
+    test(`Claude Code: a mirror entry that is ${label} makes that mirror unknown`, () => {
+      const dirs = tempDirs();
+      const root = claudeCache(dirs);
+      fs.writeFileSync(path.join(dirs.claude, "plugins", "installed_plugins.json"), JSON.stringify({ version: 2, plugins: { "au-unslop@adhd-unslop": entry } }));
+      const r = runDoctor(dirs, { root });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.ok(r.has(/^OK {3}au-unslop: unknown, because /), r.stdout);
+      assert.ok(r.lines.includes("OK   au-i-have-adhd: not installed (optional)"), r.stdout);
+      assert.deepEqual(r.warns, []);
     });
   }
 
