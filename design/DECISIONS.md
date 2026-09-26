@@ -16,9 +16,11 @@ History:
 - `PLAN.md` holds the v0.1.0 design and its five Codex review rounds
   (`round-1` to `round-5`).
 - `RESTRUCTURE.md` holds the 0.2.0 split into several plugins.
-- `STRUCTURE-v2.md` holds the 0.3.0 restructure, accepted after Codex
-  review rounds 6 to 9. Its research and test runs are in `research/`,
-  indexed by `research/00-synthesis.md`.
+- `STRUCTURE-v2.md` holds the 0.3.0 restructure. Its design reached
+  CONSENSUS in Codex review rounds 6 to 11, and its implementation in rounds
+  12 to 16, with two Claude review passes (`round-12-claude.md`,
+  `round-13-claude.md`) while Codex was out of credits. Its research and test
+  runs are in `research/`, indexed by `research/00-synthesis.md`.
 - This file supersedes all three where they disagree.
 
 ## Behavior
