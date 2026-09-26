@@ -209,10 +209,11 @@ codex_rollout() { find "$codex_home/.codex/sessions" -name "rollout-*-$1.jsonl" 
 codex_plugins() { cxc plugin list --json >"$1.json" 2>"$1.err"; inspect plugins codex "$1.json" >"$1"; }
 codex_hooks() { cx_env node "$here/codex-hooks.mjs" "$codex_bin" "$cwd" "$@"; }
 
-# model_step NAME: call before each Codex model run. After the first run it
-# reads the plan usage from the home of the last run, and at the limit it
-# prints one SKIP line and returns 1, so the caller stops its Codex steps.
-usage_home=
+# model_step NAME: call before each Codex model run. It reads the plan usage
+# from the home of the last run, starting with the user's own Codex home, and
+# at the limit prints one SKIP line and returns 1, so the caller stops its
+# Codex steps (DECISIONS D30).
+usage_home=${CODEX_HOME:-$real_home/.codex}
 codex_skipped=
 model_step() {
   local out rc
