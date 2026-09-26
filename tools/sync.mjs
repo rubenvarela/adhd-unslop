@@ -57,6 +57,10 @@ export function dependencyHits(body) {
   return hits;
 }
 
+// Upstream files are kept byte for byte, so a body may use CRLF. Every reader
+// below works on LF.
+const lf = (text) => text.replace(/\r\n/g, "\n");
+
 // Numbered items in the section that starts with `heading`, up to the next `## `.
 function listNumbers(body, heading) {
   const start = body.indexOf(`\n${heading}\n`);
@@ -70,11 +74,11 @@ function listNumbers(body, heading) {
 // Every citation label the overlay may use, the upstream it points into, and
 // how to read the numbers that exist in that upstream body.
 export const CITATION_KINDS = [
-  { label: "ADHD rule", upstream: "i-have-adhd", numbers: (b) => [...b.matchAll(/^### (\d+)\. /gm)].map((m) => Number(m[1])) },
-  { label: "ADHD exception", upstream: "i-have-adhd", numbers: (b) => listNumbers(b, "## When to break the rules") },
-  { label: "ADHD check", upstream: "i-have-adhd", numbers: (b) => listNumbers(b, "## Pre-send check") },
-  { label: "unslop rule", upstream: "unslop", numbers: (b) => [...b.matchAll(/^(\d+)\. \*\*/gm)].map((m) => Number(m[1])) },
-  { label: "unslop process", upstream: "unslop", numbers: (b) => listNumbers(b, "## Process") },
+  { label: "ADHD rule", upstream: "i-have-adhd", numbers: (b) => [...lf(b).matchAll(/^### (\d+)\. /gm)].map((m) => Number(m[1])) },
+  { label: "ADHD exception", upstream: "i-have-adhd", numbers: (b) => listNumbers(lf(b), "## When to break the rules") },
+  { label: "ADHD check", upstream: "i-have-adhd", numbers: (b) => listNumbers(lf(b), "## Pre-send check") },
+  { label: "unslop rule", upstream: "unslop", numbers: (b) => [...lf(b).matchAll(/^(\d+)\. \*\*/gm)].map((m) => Number(m[1])) },
+  { label: "unslop process", upstream: "unslop", numbers: (b) => listNumbers(lf(b), "## Process") },
 ];
 
 const kindFor = (label) => CITATION_KINDS.find((k) => k.label === label);

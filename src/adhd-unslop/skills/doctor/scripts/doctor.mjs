@@ -131,11 +131,13 @@ ok(runtime ? `runtime: ${runtime === "codex" ? "Codex" : "Claude Code"} (${runti
 ok(`plugin root: ${root}`);
 
 const id = `${PLUGIN}@${MARKETPLACE}`;
+// A checkout of this repo keeps the build two levels above the plugin root.
+const checkoutBuild = path.resolve(root, "..", "..", "tools", "build.mjs");
 const reinstallCmd = {
   claude: `claude plugin marketplace update ${MARKETPLACE} && claude plugin uninstall ${id} && claude plugin install ${id}`,
   codex: `codex plugin marketplace upgrade ${MARKETPLACE} && codex plugin remove ${id} && codex plugin add ${id}`,
-}[runtime] ?? "node tools/build.mjs";
-const reinstallThen = runtime ? "start a new session" : "run that in a checkout of this repo; for an installed plugin, reinstall it";
+}[runtime] ?? (isFile(checkoutBuild) ? `node ${shq(checkoutBuild)}` : `reinstall ${id} with your runtime's plugin commands`);
+const reinstallThen = runtime ? "start a new session" : null;
 
 // 2. Installed adhd-unslop version.
 const manifest = readJson(path.join(root, ".claude-plugin", "plugin.json"));
@@ -305,15 +307,18 @@ for (const name of entries.sort()) {
     const dup = target.plugin ? `${target.plugin}:${target.skill}` : `${MARKETPLACE} plugin`;
     clashes.push({ p, st, why: `${p} links into ${target.plugin ? `an installed or checked-out ${target.plugin} plugin` : `a copy of the ${MARKETPLACE} repo`}`, dup });
   } else if (name === PLUGIN) {
-    clashes.push({ p, st, why: `${p} exists`, dup: `${PLUGIN}:${PLUGIN}` });
+    clashes.push({ p, st, why: `${p} exists`, maybe: true });
   }
 }
 if (!clashes.length) {
   ok(`no ${skillsDir} entry clashes with the ${MARKETPLACE} skills`);
 }
-for (const { p, st, why, dup } of clashes) {
+for (const { p, st, why, dup, maybe } of clashes) {
   const rm = st.isDirectory() && !st.isSymbolicLink() ? "rm -r" : "rm";
-  warn(`${why}. It creates a duplicate ${dup} skill name in Codex, which then loads neither copy`, `${rm} ${shq(p)}`);
+  const effect = maybe
+    ? `It may clash with the ${PLUGIN} skill in Codex, and the README advises against any ${PLUGIN} entry there`
+    : `It creates a duplicate ${dup} skill name in Codex, which then loads neither copy`;
+  warn(`${why}. ${effect}`, `${rm} ${shq(p)}`);
 }
 
 process.exitCode = failed ? 1 : 0;

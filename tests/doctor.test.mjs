@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, test } from "node:test";
-import { repo, read, proseOnly } from "./helpers.mjs";
+import { repo, read, proseOnly, trackTemp } from "./helpers.mjs";
 
 const plugins = path.join(repo, "plugins");
 const SCRIPT = path.join("skills", "doctor", "scripts", "doctor.mjs");
@@ -14,7 +14,7 @@ const versionOf = (dir) => JSON.parse(fs.readFileSync(path.join(dir, ".claude-pl
 
 // A throwaway home with empty Claude Code and Codex config dirs.
 function tempDirs() {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), "adhd-unslop-doctor-"));
+  const base = trackTemp(fs.mkdtempSync(path.join(os.tmpdir(), "adhd-unslop-doctor-")));
   const home = path.join(base, "home");
   const claude = path.join(home, ".claude");
   const codex = path.join(home, ".codex");
@@ -271,7 +271,7 @@ describe("doctor name clash in ~/.agents/skills", () => {
     const r = runDoctor(dirs);
     assert.equal(r.status, 0);
     assert.equal(r.warns.length, 1, r.stdout);
-    assert.equal(fixFor(r, /exists\. It creates a duplicate adhd-unslop:adhd-unslop skill name in Codex/), `     fix: rm ${link}`);
+    assert.equal(fixFor(r, /exists\. It may clash with the adhd-unslop skill in Codex/), `     fix: rm ${link}`);
   });
 
   test("a real adhd-unslop directory gets rm -r", () => {

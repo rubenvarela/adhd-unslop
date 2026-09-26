@@ -522,8 +522,10 @@ raises the pins in `tools/cli-versions.json`, and starts `verify.yml` on it.
   updates them weekly with a seven-day cooldown, in one grouped PR. The
   actionlint image and the zizmor version are pinned in `verify.yml` and
   raised by hand.
-- `.gitattributes` sets LF line endings, keeps `upstream/` byte for byte,
-  and marks generated files as generated.
+- `.gitattributes` sets LF line endings for hand-written files. It stores
+  `upstream/` and every generated file byte for byte, so a mirror of a CRLF
+  upstream stays identical to it, and it marks generated files as
+  generated.
 - No Markdown lint: upstream text must stay verbatim (D2).
 
 ## Platform facts
@@ -540,7 +542,7 @@ or when `cli-drift.yml` fails.
 | Marketplace entry `version` | Ignored when `plugin.json` has one; `--strict` fails on a mismatch | Not used |
 | Config-only install | Not tested | `[plugins."x@mkt"] enabled = true` does nothing alone, but `codex plugin marketplace upgrade` then installs it from a git marketplace |
 | Plugin cache | `~/.claude/plugins/cache/<mkt>/<plugin>/<version>/`; old versions stay | `$CODEX_HOME/plugins/cache/<mkt>/<plugin>/<version>/`; only the installed version |
-| Local directory marketplace | `install` writes a cache copy, which `installPath` names, and reports that the plugin loads in place from the source directory, so edits there show at the next session | Copies into the cache |
+| Local directory marketplace | `install` writes a cache copy, which `installPath` names, and reports that the plugin loads in place from the source directory. Whether a later edit to the source shows up without reinstalling is untested. | Copies into the cache |
 | Git marketplace copy | Cloned by `marketplace add` | Cloned in full to `$CODEX_HOME/.tmp/marketplaces/<name>/` |
 | Hook environment | `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, never `PLUGIN_ROOT` | `PLUGIN_ROOT`, `PLUGIN_DATA`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CODEX_HOME` |
 | SessionStart payload | `session_id`, `transcript_path`, `source` | `session_id`, `transcript_path`, `source` |

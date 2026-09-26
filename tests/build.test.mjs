@@ -23,7 +23,7 @@ import {
 } from "../tools/build.mjs";
 import { sha256, stripFrontmatter, TOTAL_CHUNKS, estimateTokens } from "../src/adhd-unslop/hooks/lib.mjs";
 import { dependencyHits } from "../tools/sync.mjs";
-import { repo, read, readPlugin, pluginRoot } from "./helpers.mjs";
+import { repo, read, readPlugin, pluginRoot, trackTemp } from "./helpers.mjs";
 
 const config = loadConfig();
 const pins = loadPins();
@@ -40,20 +40,23 @@ describe("generated files", () => {
     assert.deepEqual(strayFiles(), []);
   });
 
-  test("a stray file is reported, and prune removes only strays, in a copy of the generated folders", () => {
-    // Never prune the working tree from a test: a person's stray file there is theirs to keep.
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "adhd-unslop-prune-"));
-    for (const top of GENERATED_ROOTS) fs.cpSync(path.join(repo, top), path.join(tmp, top), { recursive: true });
+  test("a stray file is reported, and prune removes only strays, in a fresh copy", () => {
+    // Never prune the working tree from a test, and never copy it either: a
+    // person's stray file there is theirs to keep, and must not fail this test.
+    const tmp = trackTemp(fs.mkdtempSync(path.join(os.tmpdir(), "adhd-unslop-prune-")));
+    const expected = expectedFiles();
+    for (const [file, text] of expected) {
+      fs.mkdirSync(path.dirname(path.join(tmp, file)), { recursive: true });
+      fs.writeFileSync(path.join(tmp, file), text);
+    }
     const rel = "plugins/adhd-unslop/skills/adhd-unslop/stray-test-file.md";
     fs.writeFileSync(path.join(tmp, rel), "stray\n");
     fs.mkdirSync(path.join(tmp, "plugins", "adhd-unslop", "empty-stray-dir", "nested"), { recursive: true });
-    const expected = expectedFiles();
     assert.deepEqual(strayFiles(expected, tmp), [rel]);
     assert.deepEqual(prune(expected, tmp), [rel]);
     assert.ok(!fs.existsSync(path.join(tmp, rel)));
     assert.ok(!fs.existsSync(path.join(tmp, "plugins", "adhd-unslop", "empty-stray-dir")));
     for (const file of expected.keys()) assert.ok(fs.existsSync(path.join(tmp, file)), `kept ${file}`);
-    fs.rmSync(tmp, { recursive: true, force: true });
   });
 
   test("no file under plugins/ is a symlink", () => {
@@ -86,7 +89,8 @@ describe("generated files", () => {
 
   test("no template syntax survives the build", () => {
     for (const [file, text] of expectedFiles()) {
-      if (file.endsWith(".md")) assert.doesNotMatch(text, /^\{\{/m, file);
+      // Only our own directives: upstream text may legitimately hold a line that starts with {{.
+      if (file.endsWith(".md")) assert.doesNotMatch(text, /^\{\{(include|upstream) /m, file);
       assert.ok(!file.endsWith(".tmpl"), `${file} shipped a template`);
     }
   });
