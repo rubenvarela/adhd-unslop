@@ -284,5 +284,8 @@ paths, so a directory listing that named them counted as a load. The next
 run passed with no listing.
 
 The check now counts only real loads: a skill injected into the rollout, or
-a command that reads the file (`cat`, `sed`, `head`, and similar). Two later
-runs in GitHub mode passed 22 of 22.
+a command whose own command line names the file, whatever the command is.
+Codex logs each command on a line with the shell's `-lc` flag, and a listing
+names paths only in its output. Review round 17 rejected a first version
+that matched only a list of reader commands, because `grep`, `rg`, or
+`perl` can read a file too.
