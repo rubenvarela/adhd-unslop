@@ -1,6 +1,6 @@
 {
   "name": "au-unslop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Pinned, unchanged copy of the unslop skill from pstack-claude by Michael Denyer (github.com/michael-denyer/pstack-claude). Removes AI patterns from writing.",
   "author": {
     "name": "Rubén Varela"

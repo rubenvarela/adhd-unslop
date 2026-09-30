@@ -254,7 +254,7 @@ Then verify: if the reader reads only the first line and the last line, do they 
 
 If yes, send.
 <!-- END upstream i-have-adhd -->
-<!-- BEGIN upstream unslop michael-denyer/pstack-claude/plugins/pstack/skills/unslop/SKILL.md @4a3ef20bba5b49c3d137c07809227a8b2b568f32 -->
+<!-- BEGIN upstream unslop michael-denyer/pstack-claude/plugins/pstack/skills/unslop/SKILL.md @2368e49821e39f0fad43de2dde34c29c0b79a975 -->
 
 # Unslop
 
