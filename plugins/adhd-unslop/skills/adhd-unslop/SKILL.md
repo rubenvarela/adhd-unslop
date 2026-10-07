@@ -119,7 +119,7 @@ A newly completed bundle with a different hash replaces the rules without resett
 **Known limitation.** Mode state exists only in the conversation. Compaction or resume can lose it. Reinjection restores the instructions without recovering lost state, so it may restore the active defaults. A stop command may need repeating.
 
 **Runtime precedence.** The runtime's system prompt and the user's direct instructions outrank both modes. ADHD exception 6 states this for ADHD. The same precedence applies to unslop.
-<!-- BEGIN upstream i-have-adhd ayghri/i-have-adhd/skills/i-have-adhd/SKILL.md @6f1f982d0a47c65899af3c5a7450b7098bc65325 -->
+<!-- BEGIN upstream i-have-adhd ayghri/i-have-adhd/skills/i-have-adhd/SKILL.md @5a9244e0c9e69d966243a6104d4c69ac736c9396 -->
 
 # i-have-adhd
 
@@ -148,7 +148,7 @@ Five facts drive every rule below:
 The first line is something the reader can do. Not context. Not a plan. The action.
 
 Bad: "Let's think about this. Your auth flow has a few moving pieces..."
-Good: "Run `npm install jsonwebtoken`, then edit `src/auth.ts:42`."
+Good: "Edit `src/auth.ts:42` to update the token validation."
 
 If the answer is a command, path, or snippet, it goes first. Prose comes after, if at all.
 
@@ -254,7 +254,7 @@ Then verify: if the reader reads only the first line and the last line, do they 
 
 If yes, send.
 <!-- END upstream i-have-adhd -->
-<!-- BEGIN upstream unslop michael-denyer/pstack-claude/plugins/pstack/skills/unslop/SKILL.md @4a3ef20bba5b49c3d137c07809227a8b2b568f32 -->
+<!-- BEGIN upstream unslop michael-denyer/pstack-claude/plugins/pstack/skills/unslop/SKILL.md @2368e49821e39f0fad43de2dde34c29c0b79a975 -->
 
 # Unslop
 
