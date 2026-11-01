@@ -467,7 +467,8 @@ async function codexCatalog(bin, copy, exp, env, label) {
       const suffix = ["plugins", "cache", exp.mkt, p.name, p.version, ...p.hooksFile.split("/")].join(path.sep);
       const wrong = mine.filter((h) => !path.resolve(h.sourcePath ?? "").endsWith(path.sep + suffix));
       check(`${label}: hooks/list for ${p.name} reads the ${p.version} cache copy`, wrong.length === 0, wrong.map((h) => `${h.key}: ${h.sourcePath}`).join("\n"));
-      const unhashed = mine.filter((h) => !/^sha256:[0-9a-f]{64}$/.test(h.currentHash ?? ""));
+      // Codex 0.166+ reports currentHash as "sha256:<hex>/sha256:<hex>" (two joined hashes); older builds report one.
+      const unhashed = mine.filter((h) => !/^sha256:[0-9a-f]{64}(\/sha256:[0-9a-f]{64})*$/.test(h.currentHash ?? ""));
       check(`${label}: hooks/list for ${p.name} gives each handler a trust hash`, unhashed.length === 0, unhashed.map((h) => `${h.key}: ${h.currentHash}`).join("\n"));
       console.log(`      trust: ${mine.map((h) => `${h.key.split(":").slice(-2).join(":")}=${h.trustStatus}`).join(" ")}`);
     }
