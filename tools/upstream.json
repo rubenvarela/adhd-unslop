@@ -2,11 +2,11 @@
   "upstreams": {
     "i-have-adhd": {
       "repo": "ayghri/i-have-adhd",
-      "commit": "6f1f982d0a47c65899af3c5a7450b7098bc65325",
+      "commit": "5a9244e0c9e69d966243a6104d4c69ac736c9396",
       "files": {
         "SKILL.md": {
           "path": "skills/i-have-adhd/SKILL.md",
-          "sha256": "3170b16ace00aecb0dd7feb54c0b5aa642e7502acda06ecd24fd89a11c7127e9"
+          "sha256": "88955c019bbb1419ff4b49dbb1f80a867467de6233d7865af2e06a7d7b76c7d3"
         },
         "LICENSE": {
           "path": "LICENSE",
@@ -16,7 +16,7 @@
     },
     "unslop": {
       "repo": "michael-denyer/pstack-claude",
-      "commit": "4a3ef20bba5b49c3d137c07809227a8b2b568f32",
+      "commit": "2368e49821e39f0fad43de2dde34c29c0b79a975",
       "files": {
         "SKILL.md": {
           "path": "plugins/pstack/skills/unslop/SKILL.md",
@@ -24,7 +24,7 @@
         },
         "LICENSE": {
           "path": "LICENSE",
-          "sha256": "bc957ca6bee02792566a1a028d105e02e247c6e77cf057061674273da77b200e"
+          "sha256": "5b1faca8cef6b7433b49c812c5e9e04bb1eb73b67171d67729983e0b46b9bb78"
         }
       }
     }
